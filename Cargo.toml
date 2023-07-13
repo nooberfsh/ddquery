@@ -1,0 +1,17 @@
+[package]
+name = "ddquery"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# general
+anyhow = "1.0.71"
+# dataflow
+timely = { git = "https://github.com/TimelyDataflow/timely-dataflow" }
+differential-dataflow = { git = "https://github.com/TimelyDataflow/differential-dataflow" }
+abomonation = "0.7"
+abomonation_derive = "0.5.0"
+# network
+tokio = { version = "1.29.1", features = ["full"] }
