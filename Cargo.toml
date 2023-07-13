@@ -1,0 +1,12 @@
+[package]
+name = "ddquery"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+differential-dataflow = "0.13.1"
+timely = "0.14.1"
+serde = {version = "1.0.210", features = ["derive"]}
+crossbeam = "0.8.4"
