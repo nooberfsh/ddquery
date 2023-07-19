@@ -15,3 +15,4 @@ abomonation = "0.7"
 abomonation_derive = "0.5.0"
 # network
 tokio = { version = "1.29.1", features = ["full"] }
+crossbeam-channel = "0.5.8"
