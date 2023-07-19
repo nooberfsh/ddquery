@@ -1,0 +1,170 @@
+use std::collections::HashMap;
+
+use crossbeam_channel::Receiver;
+use differential_dataflow::input::InputSession;
+use differential_dataflow::operators::arrange::upsert;
+use differential_dataflow::trace::TraceReader;
+use timely::communication::Allocate;
+use timely::dataflow::InputHandle;
+use timely::dataflow::operators::Input;
+use timely::dataflow::scopes::Child;
+use timely::progress::frontier::AntichainRef;
+use tokio::sync::oneshot;
+
+use crate::coord::{Context, CoordCommand};
+use crate::error::Error;
+use crate::gid::GID;
+use crate::name::Name;
+use crate::row::Row;
+use crate::timely::{GenericWorker, Scope, Spine, Timestamp, Trace};
+
+pub struct WorkerContext<'a> {
+    pub worker: &'a mut GenericWorker,
+    pub state: &'a WorkerState,
+}
+
+pub enum WorkerCommand {
+    CreateInput {
+        name: Name,
+    },
+    CreateDerive {
+        name: Name,
+        f: Box<dyn for <'a> Fn(&mut WorkerContext<'a>) -> anyhow::Result<Trace> + Send + Sync + 'static>,
+        tx: oneshot::Sender<Result<(), Error>>,
+    },
+    Upsert {
+        name: Name,
+        time: Timestamp,
+        key: Row,
+        value: Option<Row>,
+    },
+    Query {
+        gid: GID,
+        name: Name,
+        time: Timestamp,
+        key: Row,
+        tx: oneshot::Sender<Vec<Row>>,
+    },
+    AdvanceInput {
+        time: Timestamp,
+    },
+    AllowCompaction(Vec<(Name, Timestamp)>)
+    // TODO support shutdown
+    // Shutdown,
+}
+
+pub struct WorkerState {
+    pub inputs: HashMap<Name, InputHandle<Timestamp, (Row, Option<Row>, Timestamp)>>,
+    pub trace: HashMap<Name, Trace>,
+}
+
+pub struct Worker<'a>
+{
+    state: WorkerState,
+    cmd_rx: Receiver<CoordCommand>,
+    worker: &'a mut GenericWorker,
+}
+
+impl<'a> Worker<'a>
+{
+    fn run(&mut self) {
+        loop {
+            self.maintenance();
+            self.worker.step_or_park(None);
+
+            let cmds: Vec<_> = self.cmd_rx.try_iter().collect();
+            for cmd in cmds {
+                // if let Command::Shutdown = cmd {
+                //     break;
+                // }
+                // self.handle_command(cmd);
+            }
+        }
+    }
+
+    fn init_log(&mut self) {
+        todo!()
+    }
+
+    fn maintenance(&mut self) {
+        todo!()
+    }
+
+    fn report_frontiers(&mut self) {
+        todo!()
+    }
+
+    fn allow_compaction(&mut self, frontier: Vec<(Name, Timestamp)>) {
+        for (name, time) in frontier {
+            let trace = self.state.trace.get_mut(&name).unwrap();
+            trace.set_logical_compaction(AntichainRef::new(&[time]));
+        }
+    }
+
+    fn ctx(&mut self) -> WorkerContext<'_> {
+        WorkerContext {
+            worker: &mut *self.worker,
+            state: &self.state
+        }
+    }
+
+    fn handle_command(&mut self, cmd: WorkerCommand) {
+        match cmd {
+            WorkerCommand::CreateInput { name} => {
+                let (input, trace) = self.worker.dataflow(|scope| {
+                    let (input, stream) = scope.new_input();
+                    let arranged = upsert::arrange_from_upsert::<_, Spine<Row, Row>>(&stream, &"CreateInput");
+                    (input, arranged.trace)
+                });
+                let trace_name = input_trace_name(&name)      ;
+                self.state.inputs.insert(name.clone(), input);
+                self.state.trace.insert(trace_name, trace);
+            },
+            WorkerCommand::CreateDerive {name, f, tx} => {
+                let res = match f(&mut self.ctx()) {
+                    Err(e) => Err(Error::UserError(e)),
+                    Ok(trace)   => {
+                        self.state.trace.insert(name, trace);
+                        Ok(())
+                    }
+                };
+                tx.send(res).unwrap();
+            },
+            WorkerCommand::Query {gid, name, time, key, tx} => {
+                let mut trace = self.state.trace.get(&name).unwrap().clone();
+                trace.set_logical_compaction(AntichainRef::new(&[time.clone()]));
+                trace.set_physical_compaction(AntichainRef::new(&[]));
+                todo!()
+            }
+            WorkerCommand::Upsert {name, time, key, value} => {
+                let input = self.state.inputs.get_mut(&name).unwrap();
+                input.send((key, value, time));
+            },
+            WorkerCommand::AdvanceInput {time} => {
+                for input in self.state.inputs.values_mut() {
+                    input.advance_to(time.clone())
+                }
+            },
+            WorkerCommand::AllowCompaction(frontier) => {
+                self.allow_compaction(frontier);
+            },
+        }
+    }
+}
+
+fn input_trace_name(name: &Name)  -> Name {
+    todo!()
+}
+
+struct PendingQuery {
+    gid: GID,
+    name: Name,
+    time: Timestamp,
+    key: Row,
+    trace: Trace,
+    tx: oneshot::Sender<Vec<Row>>,
+}
+
+impl PendingQuery {
+
+}

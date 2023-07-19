@@ -29,7 +29,7 @@ impl Client {
         rx.await.unwrap()
     }
 
-    pub async fn query(&self, name: Name, key: Row) -> Result<Option<Row>, Error> {
+    pub async fn query(&self, name: Name, key: Row) -> Vec<Row> {
         let (tx, rx) = oneshot::channel();
         let cmd = ClientCommand::Query {name, key, tx};
         self.cmd_tx.send(cmd).unwrap();
@@ -65,7 +65,7 @@ enum ClientCommand {
     Query {
         name: Name,
         key: Row,
-        tx: oneshot::Sender<Result<Option<Row>, Error>>,
+        tx: oneshot::Sender<Vec<Row>>
     },
     Upsert {
         name: Name,
