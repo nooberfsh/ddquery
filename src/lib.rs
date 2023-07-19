@@ -1,7 +1,9 @@
 mod row;
 mod coord;
-mod client;
 mod timely;
 mod worker;
-mod gid;
+
+pub mod client;
+pub mod name;
+pub mod error;
 
