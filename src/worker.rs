@@ -90,7 +90,11 @@ impl<'a> Worker<'a>
     }
 
     fn maintenance(&mut self) {
-        todo!()
+        for (_, trace) in &mut self.state.trace {
+            let mut antichain = Antichain::new();
+            trace.read_upper(&mut antichain);
+            trace.set_physical_compaction(antichain.borrow());
+        }
     }
 
     fn report_frontiers(&mut self) {
@@ -143,7 +147,7 @@ impl<'a> Worker<'a>
                     time,
                     key,
                     trace,
-                    tx,
+                    tx: Some(tx),
                 };
                 if !query.attempt() {
                     self.pending_queries.push(query);
@@ -175,7 +179,7 @@ struct PendingQuery {
     time: Timestamp,
     key: Row,
     trace: Trace,
-    tx: oneshot::Sender<Vec<Row>>,
+    tx: Option<oneshot::Sender<Vec<Row>>>,
 }
 
 impl PendingQuery {
@@ -187,7 +191,7 @@ impl PendingQuery {
         }
 
         let ret = read_key(&mut self.trace, &self.key, &self.time);
-        self.tx.send(ret).unwrap();
+        self.tx.take().unwrap().send(ret).unwrap();
 
         true
     }
