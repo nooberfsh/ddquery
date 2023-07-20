@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use crossbeam_channel::Receiver;
 use differential_dataflow::input::InputSession;
 use differential_dataflow::operators::arrange::upsert;
-use differential_dataflow::trace::TraceReader;
+use differential_dataflow::trace::{Cursor, TraceReader};
 use timely::communication::Allocate;
 use timely::dataflow::InputHandle;
 use timely::dataflow::operators::Input;
 use timely::dataflow::scopes::Child;
+use timely::PartialOrder;
+use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::oneshot;
 
@@ -61,6 +63,7 @@ pub struct WorkerState {
 pub struct Worker<'a>
 {
     state: WorkerState,
+    pending_queries: Vec<PendingQuery>,
     cmd_rx: Receiver<CoordCommand>,
     worker: &'a mut GenericWorker,
 }
@@ -134,7 +137,17 @@ impl<'a> Worker<'a>
                 let mut trace = self.state.trace.get(&name).unwrap().clone();
                 trace.set_logical_compaction(AntichainRef::new(&[time.clone()]));
                 trace.set_physical_compaction(AntichainRef::new(&[]));
-                todo!()
+                let mut query = PendingQuery{
+                    gid,
+                    name,
+                    time,
+                    key,
+                    trace,
+                    tx,
+                };
+                if !query.attempt() {
+                    self.pending_queries.push(query);
+                }
             }
             WorkerCommand::Upsert {name, time, key, value} => {
                 let input = self.state.inputs.get_mut(&name).unwrap();
@@ -166,5 +179,38 @@ struct PendingQuery {
 }
 
 impl PendingQuery {
+    fn attempt(&mut self) -> bool {
+        let mut upper = Antichain::new();
+        self.trace.read_upper(&mut upper);
+        if upper.less_equal(&self.time) {
+            return false
+        }
 
+        let ret = read_key(&mut self.trace, &self.key, &self.time);
+        self.tx.send(ret).unwrap();
+
+        true
+    }
+}
+
+fn read_key(trace: &mut Trace, key: &Row, time: &Timestamp) -> Vec<Row> {
+    let mut ret = vec![];
+    let (mut cursor, storage) = trace.cursor();
+    cursor.seek_key(&storage, key);
+    if cursor.get_key(&storage) == Some(key) {
+        while let Some(val) = cursor.get_val(&storage) {
+            let mut count = 0;
+            cursor.map_times(&storage, |dtime, diff| {
+                if dtime.less_equal(&time) {
+                    count += *diff
+                }
+            });
+            assert!(count >= 0, "");
+            for _ in 0..count {
+                ret.push(val.clone());
+            }
+            cursor.step_val(&storage);
+        }
+    }
+    ret
 }
