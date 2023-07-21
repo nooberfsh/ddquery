@@ -1,5 +1,5 @@
 use differential_dataflow::operators::arrange::TraceAgent;
-use differential_dataflow::trace::implementations::ord::{OrdKeySpine, OrdValSpine};
+use differential_dataflow::trace::implementations::ord::OrdValSpine;
 use timely::communication::allocator::Generic;
 use timely::dataflow::scopes::Child;
 

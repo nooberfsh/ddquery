@@ -1,24 +1,20 @@
 use std::collections::HashMap;
 
 use crossbeam_channel::Receiver;
-use differential_dataflow::input::InputSession;
 use differential_dataflow::operators::arrange::upsert;
 use differential_dataflow::trace::{Cursor, TraceReader};
-use timely::communication::Allocate;
 use timely::dataflow::InputHandle;
 use timely::dataflow::operators::Input;
-use timely::dataflow::scopes::Child;
 use timely::PartialOrder;
 use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::oneshot;
 
-use crate::coord::{Context, CoordCommand};
 use crate::error::Error;
 use crate::gid::GID;
 use crate::name::Name;
 use crate::row::Row;
-use crate::timely::{GenericWorker, Scope, Spine, Timestamp, Trace};
+use crate::timely::{GenericWorker, Spine, Timestamp, Trace};
 
 pub enum WorkerCommand {
     CreateInput {
