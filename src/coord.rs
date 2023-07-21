@@ -66,16 +66,38 @@ impl Coord {
                         self.broadcast(cmd);
                     }
                 },
-                CoordCommand::Upsert { .. } => {},
+                CoordCommand::Upsert { name, key, value } => {
+                    let time = self.advance_epoch();
+                    let c1 = WorkerCommand::Upsert {name, time, key, value};
+                    let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
+                    self.broadcast_n([c1,c2]);
+                },
                 CoordCommand::Query { .. } => {},
                 CoordCommand::Shutdown => break,
             }
         }
     }
 
+    fn advance_epoch(&mut self) -> Timestamp {
+        let ret = self.epoch;
+        self.epoch += 1;
+        ret
+    }
+
     fn broadcast(&mut self, cmd: WorkerCommand) {
         for tx in &mut self.worker_txs {
             tx.send(cmd.clone()).unwrap();
+        }
+        for handle in self.worker_guards.guards() {
+            handle.thread().unpark();
+        }
+    }
+
+    fn broadcast_n<const N: usize>(&mut self, cmds: [WorkerCommand; N]) {
+        for tx in &mut self.worker_txs {
+            for cmd in &cmds {
+                tx.send(cmd.clone()).unwrap();
+            }
         }
         for handle in self.worker_guards.guards() {
             handle.thread().unpark();
