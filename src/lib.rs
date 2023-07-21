@@ -6,4 +6,5 @@ pub mod client;
 pub mod name;
 pub mod error;
 pub mod gid;
+pub mod catalog;
 
