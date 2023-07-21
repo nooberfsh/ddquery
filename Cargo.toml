@@ -8,11 +8,13 @@ edition = "2021"
 [dependencies]
 # general
 anyhow = "1.0.71"
+crossbeam-channel = "0.5.8"
 # dataflow
 timely = { git = "https://github.com/TimelyDataflow/timely-dataflow" }
 differential-dataflow = { git = "https://github.com/TimelyDataflow/differential-dataflow" }
 abomonation = "0.7"
 abomonation_derive = "0.5.0"
 # network
+futures = "0.3.28"
 tokio = { version = "1.29.1", features = ["full"] }
-crossbeam-channel = "0.5.8"
+tokio-stream = "0.1.14"

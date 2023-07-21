@@ -1,7 +1,9 @@
 use std::sync::Arc;
+use futures::Stream;
 
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::coord::{CoordCommand};
 use crate::error::Error;
@@ -30,25 +32,27 @@ impl Client {
         rx.await.unwrap()
     }
 
-    pub async fn query(&self, name: Name, key: Row) -> Vec<Row> {
-        let (tx, rx) = oneshot::channel();
+    pub async fn query(&self, name: Name, key: Row) -> impl Stream<Item=Result<Vec<Row>, Error>> {
+        let (tx, rx) = unbounded_channel();
         let cmd = CoordCommand::Query {name, key, tx};
         self.cmd_tx.send(cmd).unwrap();
-        rx.await.unwrap()
+        UnboundedReceiverStream::new(rx)
     }
 
     pub async fn insert(&self, name: Name, key: Row, value: Row) -> Result<(), Error> {
         let value = Some(value);
-        let cmd = CoordCommand::Upsert {name, key, value};
+        let (tx, rx) = oneshot::channel();
+        let cmd = CoordCommand::Upsert {name, key, value, tx};
         self.cmd_tx.send(cmd).unwrap();
-        Ok(())
+        rx.await.unwrap()
     }
 
     pub async fn delete(&self, name: Name, key: Row) -> Result<(), Error> {
         let value = None;
-        let cmd = CoordCommand::Upsert {name, key, value};
+        let (tx, rx) = oneshot::channel();
+        let cmd = CoordCommand::Upsert {name, key, value, tx};
         self.cmd_tx.send(cmd).unwrap();
-        Ok(())
+        rx.await.unwrap()
     }
 }
 

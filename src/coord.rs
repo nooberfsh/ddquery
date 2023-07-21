@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Sender;
 use timely::communication::WorkerGuards;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 
 use crate::catalog::Catalog;
 use crate::error::Error;
+use crate::gid::{GIDGen};
 use crate::name::Name;
 use crate::row::Row;
 use crate::timely::{Timestamp, Trace};
@@ -27,11 +28,12 @@ pub enum CoordCommand {
         name: Name,
         key: Row,
         value: Option<Row>,
+        tx: oneshot::Sender<Result<(), Error>>,
     },
     Query {
         name: Name,
         key: Row,
-        tx: oneshot::Sender<Vec<Row>>
+        tx: UnboundedSender<Result<Vec<Row>, Error>>,
     },
     // TODO: support gracefully shutdown
     Shutdown
@@ -39,6 +41,7 @@ pub enum CoordCommand {
 
 pub struct Coord {
     epoch: Timestamp,
+    gid_gen: GIDGen,
     catalog: Catalog,
     cmd_rx: UnboundedReceiver<CoordCommand>,
     // worker and channel
@@ -66,13 +69,28 @@ impl Coord {
                         self.broadcast(cmd);
                     }
                 },
-                CoordCommand::Upsert { name, key, value } => {
-                    let time = self.advance_epoch();
-                    let c1 = WorkerCommand::Upsert {name, time, key, value};
-                    let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
-                    self.broadcast_n([c1,c2]);
+                CoordCommand::Upsert { name, key, value, tx } => {
+                    if self.catalog.input_exists(&name) {
+                        tx.send(Err(Error::InputNotExists)).unwrap();
+                    } else {
+                        tx.send(Ok(())).unwrap();
+                        let time = self.advance_epoch();
+                        let c1 = WorkerCommand::Upsert {name, time, key, value};
+                        let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
+                        self.broadcast_n([c1,c2]);
+                    }
                 },
-                CoordCommand::Query { .. } => {},
+                CoordCommand::Query { name, key, tx } => {
+                    match self.catalog.determine_trace_worker(&name, &key) {
+                        Ok(idx) =>  {
+                            let time = self.query_time();
+                            let gid = self.gid_gen.next();
+                            let cmd = WorkerCommand::Query {gid, name, time, key, tx};
+                            self.unicast(cmd, idx);
+                        },
+                        Err(e) => tx.send(Err(e)).unwrap(),
+                    };
+                },
                 CoordCommand::Shutdown => break,
             }
         }
@@ -82,6 +100,16 @@ impl Coord {
         let ret = self.epoch;
         self.epoch += 1;
         ret
+    }
+
+    fn query_time(&self) -> Timestamp {
+        assert!(self.epoch > 0, "Coord not initialized, epoch must > 0");
+        self.epoch - 1
+    }
+
+    fn unicast(&mut self, cmd: WorkerCommand, idx: usize) {
+        self.worker_txs[idx].send(cmd).unwrap();
+        self.worker_guards.guards()[idx].thread().unpark();
     }
 
     fn broadcast(&mut self, cmd: WorkerCommand) {

@@ -37,7 +37,7 @@ pub enum WorkerCommand {
         name: Name,
         time: Timestamp,
         key: Row,
-        tx: UnboundedSender<Vec<Row>>,
+        tx: UnboundedSender<Result<Vec<Row>, Error>>,
     },
     AdvanceInput {
         time: Timestamp,
@@ -176,7 +176,7 @@ struct PendingQuery {
     time: Timestamp,
     key: Row,
     trace: Trace,
-    tx: Option<UnboundedSender<Vec<Row>>>,
+    tx: Option<UnboundedSender<Result<Vec<Row>, Error>>>,
 }
 
 impl PendingQuery {
@@ -192,7 +192,7 @@ impl PendingQuery {
         }
 
         let ret = read_key(&mut self.trace, &self.key, &self.time);
-        self.tx.take().unwrap().send(ret).unwrap();
+        self.tx.take().unwrap().send(Ok(ret)).unwrap();
 
         true
     }
