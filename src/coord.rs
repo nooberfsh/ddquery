@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use crossbeam_channel::{Receiver, Sender};
 use timely::communication::WorkerGuards;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -47,26 +48,28 @@ pub struct Coord {
 
 impl Coord {
     pub async fn run(mut self) {
-        match self.cmd_rx.recv().await.unwrap() {
-            CoordCommand::CreateInput { name, tx } => {
-                if let Err(e) = self.catalog.create_input(name.clone()) {
-                    tx.send(Err(e)).unwrap();
-                } else {
-                    let cmd = WorkerCommand::CreateInput {name};
-                    self.broadcast(cmd);
-                }
-            },
-            CoordCommand::CreateDerive { name, f, tx } => {
-                if let Err(e) = self.catalog.create_input(name.clone()) {
-                    tx.send(Err(e)).unwrap();
-                } else {
-                    let cmd = WorkerCommand::CreateDerive {name, f};
-                    self.broadcast(cmd);
-                }
-            },
-            CoordCommand::Query { .. } => {},
-            CoordCommand::Upsert { .. } => {},
-            CoordCommand::Shutdown => {},
+        loop {
+            match self.cmd_rx.recv().await.unwrap() {
+                CoordCommand::CreateInput { name, tx } => {
+                    if let Err(e) = self.catalog.create_input(name.clone()) {
+                        tx.send(Err(e)).unwrap();
+                    } else {
+                        let cmd = WorkerCommand::CreateInput {name};
+                        self.broadcast(cmd);
+                    }
+                },
+                CoordCommand::CreateDerive { name, f, tx } => {
+                    if let Err(e) = self.catalog.create_input(name.clone()) {
+                        tx.send(Err(e)).unwrap();
+                    } else {
+                        let cmd = WorkerCommand::CreateDerive {name, f};
+                        self.broadcast(cmd);
+                    }
+                },
+                CoordCommand::Upsert { .. } => {},
+                CoordCommand::Query { .. } => {},
+                CoordCommand::Shutdown => break,
+            }
         }
     }
 
