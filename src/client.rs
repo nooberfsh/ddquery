@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
@@ -5,6 +7,7 @@ use crate::coord::{CoordCommand};
 use crate::error::Error;
 use crate::name::Name;
 use crate::row::Row;
+use crate::timely::Trace;
 use crate::worker::{WorkerContext};
 
 pub struct Client {
@@ -19,8 +22,8 @@ impl Client {
         rx.await.unwrap()
     }
 
-    pub async fn create_derive(&self, name: Name, f: impl for<'a> Fn(&mut WorkerContext<'a>) -> anyhow::Result<Row> + Send + Sync + 'static) -> Result<(), Error> {
-        let f = Box::new(f);
+    pub async fn create_derive(&self, name: Name, f: impl for<'a> Fn(&mut WorkerContext<'a>) -> Option<Trace> + Send + Sync + 'static) -> Result<(), Error> {
+        let f = Arc::new(f);
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::CreateDerive {name, f, tx};
         self.cmd_tx.send(cmd).unwrap();

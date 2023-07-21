@@ -21,15 +21,7 @@ impl Catalog {
         Ok(())
     }
 
-    pub fn input_exists(&self, name: &Name) -> bool {
-        self.input.get(name).is_some()
-    }
-
-    pub fn trace_exists(&self, name: &Name) -> bool {
-        self.trace.get(name).is_some()
-    }
-
-    fn check_name(&self, name: &Name) -> Result<(), Error> {
+    pub fn check_name(&self, name: &Name) -> Result<(), Error> {
         todo!()
     }
 }

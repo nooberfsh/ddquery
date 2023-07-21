@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crossbeam_channel::Receiver;
 use differential_dataflow::operators::arrange::upsert;
@@ -8,7 +9,7 @@ use timely::dataflow::operators::Input;
 use timely::PartialOrder;
 use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
-use tokio::sync::oneshot;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::error::Error;
 use crate::gid::GID;
@@ -16,14 +17,14 @@ use crate::name::Name;
 use crate::row::Row;
 use crate::timely::{GenericWorker, Spine, Timestamp, Trace};
 
+#[derive(Clone)]
 pub enum WorkerCommand {
     CreateInput {
         name: Name,
     },
     CreateDerive {
         name: Name,
-        f: Box<dyn for <'a> Fn(&mut WorkerContext<'a>) -> anyhow::Result<Trace> + Send + Sync + 'static>,
-        tx: oneshot::Sender<Result<(), Error>>,
+        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a>) -> Option<Trace> + Send + Sync + 'static>,
     },
     Upsert {
         name: Name,
@@ -36,7 +37,7 @@ pub enum WorkerCommand {
         name: Name,
         time: Timestamp,
         key: Row,
-        tx: oneshot::Sender<Vec<Row>>,
+        tx: UnboundedSender<Vec<Row>>,
     },
     AdvanceInput {
         time: Timestamp,
@@ -127,15 +128,10 @@ impl<'a> Worker<'a>
                 self.state.inputs.insert(name.clone(), input);
                 self.state.trace.insert(trace_name, trace);
             },
-            WorkerCommand::CreateDerive {name, f, tx} => {
-                let res = match f(&mut self.ctx()) {
-                    Err(e) => Err(Error::UserError(e)),
-                    Ok(trace)   => {
-                        self.state.trace.insert(name, trace);
-                        Ok(())
-                    }
-                };
-                tx.send(res).unwrap();
+            WorkerCommand::CreateDerive {name, f} => {
+                if let Some(trace) = f(&mut self.ctx()) {
+                    self.state.trace.insert(name, trace);
+                }
             },
             WorkerCommand::Query {gid, name, time, key, tx} => {
                 let mut trace = self.state.trace.get(&name).unwrap().clone();
@@ -180,7 +176,7 @@ struct PendingQuery {
     time: Timestamp,
     key: Row,
     trace: Trace,
-    tx: Option<oneshot::Sender<Vec<Row>>>,
+    tx: Option<UnboundedSender<Vec<Row>>>,
 }
 
 impl PendingQuery {
