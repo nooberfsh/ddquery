@@ -20,11 +20,6 @@ use crate::name::Name;
 use crate::row::Row;
 use crate::timely::{GenericWorker, Scope, Spine, Timestamp, Trace};
 
-pub struct WorkerContext<'a> {
-    pub worker: &'a mut GenericWorker,
-    pub state: &'a WorkerState,
-}
-
 pub enum WorkerCommand {
     CreateInput {
         name: Name,
@@ -50,9 +45,13 @@ pub enum WorkerCommand {
     AdvanceInput {
         time: Timestamp,
     },
-    AllowCompaction(Vec<(Name, Timestamp)>)
-    // TODO support shutdown
-    // Shutdown,
+    AllowCompaction(Vec<(Name, Timestamp)>),
+    Shutdown,
+}
+
+pub struct WorkerContext<'a> {
+    pub worker: &'a mut GenericWorker,
+    pub state: &'a WorkerState,
 }
 
 pub struct WorkerState {
@@ -64,23 +63,25 @@ pub struct Worker<'a>
 {
     state: WorkerState,
     pending_queries: Vec<PendingQuery>,
-    cmd_rx: Receiver<CoordCommand>,
+    cmd_rx: Receiver<WorkerCommand>,
     worker: &'a mut GenericWorker,
 }
 
 impl<'a> Worker<'a>
 {
-    fn run(&mut self) {
+    fn run(mut self) {
         loop {
             self.maintenance();
             self.worker.step_or_park(None);
 
+            self.process_pending_queries();
+
             let cmds: Vec<_> = self.cmd_rx.try_iter().collect();
             for cmd in cmds {
-                // if let Command::Shutdown = cmd {
-                //     break;
-                // }
-                // self.handle_command(cmd);
+                if let WorkerCommand::Shutdown = cmd {
+                    break;
+                }
+                self.handle_command(cmd);
             }
         }
     }
@@ -97,8 +98,11 @@ impl<'a> Worker<'a>
         }
     }
 
-    fn report_frontiers(&mut self) {
-        todo!()
+    fn process_pending_queries(&mut self) {
+        for query in &mut self.pending_queries {
+            query.attempt();
+        }
+        self.pending_queries.retain(|q| !q.finished());
     }
 
     fn allow_compaction(&mut self, frontier: Vec<(Name, Timestamp)>) {
@@ -165,6 +169,7 @@ impl<'a> Worker<'a>
             WorkerCommand::AllowCompaction(frontier) => {
                 self.allow_compaction(frontier);
             },
+            WorkerCommand::Shutdown => unreachable!(),
         }
     }
 }
@@ -183,6 +188,10 @@ struct PendingQuery {
 }
 
 impl PendingQuery {
+    fn finished(&self) -> bool {
+        self.tx.is_none()
+    }
+
     fn attempt(&mut self) -> bool {
         let mut upper = Antichain::new();
         self.trace.read_upper(&mut upper);
@@ -209,7 +218,7 @@ fn read_key(trace: &mut Trace, key: &Row, time: &Timestamp) -> Vec<Row> {
                     count += *diff
                 }
             });
-            assert!(count >= 0, "");
+            assert!(count >= 0);
             for _ in 0..count {
                 ret.push(val.clone());
             }
