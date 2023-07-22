@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::Receiver;
-use differential_dataflow::operators::arrange::upsert;
 use differential_dataflow::trace::{Cursor, TraceReader};
 use timely::dataflow::InputHandle;
-use timely::dataflow::operators::Input;
-use timely::PartialOrder;
+use timely::{PartialOrder, WorkerConfig};
+use timely::communication::WorkerGuards;
 use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::mpsc::UnboundedSender;
@@ -15,7 +14,7 @@ use crate::error::Error;
 use crate::gid::GID;
 use crate::name::Name;
 use crate::row::Row;
-use crate::timely::{GenericWorker, Spine, Timestamp, Trace};
+use crate::timely::{GenericWorker, Timestamp, Trace};
 
 #[derive(Clone)]
 pub enum WorkerCommand {
@@ -51,6 +50,7 @@ pub struct WorkerContext<'a> {
     pub state: &'a WorkerState,
 }
 
+#[derive(Default)]
 pub struct WorkerState {
     pub inputs: HashMap<Name, InputHandle<Timestamp, (Row, Option<Row>, Timestamp)>>,
     pub trace: HashMap<Name, Trace>,
@@ -58,10 +58,49 @@ pub struct WorkerState {
 
 pub struct Worker<'a>
 {
+    worker_id: usize,
     state: WorkerState,
     pending_queries: Vec<PendingQuery>,
     cmd_rx: Receiver<WorkerCommand>,
     worker: &'a mut GenericWorker,
+}
+
+pub struct Config {
+    pub cmd_rxs: Vec<Receiver<WorkerCommand>>,
+    pub timely_worker: WorkerConfig,
+}
+
+pub fn serve(config: Config) -> Result<WorkerGuards<()>, Error> {
+    let workers = config.cmd_rxs.len();
+    assert!(workers > 0);
+
+    let command_rxs: Mutex<Vec<_>> =
+        Mutex::new(config.cmd_rxs.into_iter().map(Some).collect());
+
+    let tokio_executor = tokio::runtime::Handle::current();
+    timely::execute::execute(
+        timely::Config {
+            communication: timely::CommunicationConfig::Process(workers),
+            worker: config.timely_worker,
+        },
+        move |timely_worker| {
+            assert_eq!(timely_worker.peers(), workers);
+
+            let _tokio_guard = tokio_executor.enter();
+            let cmd_rx = command_rxs.lock().unwrap()[timely_worker.index()]
+                .take()
+                .unwrap();
+            let worker_id = timely_worker.index();
+            Worker {
+                worker_id,
+                state: WorkerState::default(),
+                pending_queries: vec![],
+                cmd_rx,
+                worker: timely_worker,
+            }
+            .run()
+        },
+    ).map_err(Error::FailedToStartWorkers)
 }
 
 impl<'a> Worker<'a>
