@@ -119,14 +119,8 @@ impl<'a> Worker<'a>
     fn handle_command(&mut self, cmd: WorkerCommand) {
         match cmd {
             WorkerCommand::CreateInput { name} => {
-                let (input, trace) = self.worker.dataflow(|scope| {
-                    let (input, stream) = scope.new_input();
-                    let arranged = upsert::arrange_from_upsert::<_, Spine<Row, Row>>(&stream, &"CreateInput");
-                    (input, arranged.trace)
-                });
-                let trace_name = input_trace_name(&name)      ;
-                self.state.inputs.insert(name.clone(), input);
-                self.state.trace.insert(trace_name, trace);
+                let input = InputHandle::new();
+                self.state.inputs.insert(name, input);
             },
             WorkerCommand::CreateDerive {name, f} => {
                 if let Some(trace) = f(&mut self.ctx()) {
@@ -164,10 +158,6 @@ impl<'a> Worker<'a>
             WorkerCommand::Shutdown => unreachable!(),
         }
     }
-}
-
-fn input_trace_name(name: &Name)  -> Name {
-    todo!()
 }
 
 struct PendingQuery {

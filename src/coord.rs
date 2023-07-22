@@ -62,7 +62,7 @@ impl Coord {
                     }
                 },
                 CoordCommand::CreateDerive { name, f, tx } => {
-                    if let Err(e) = self.catalog.create_input(name.clone()) {
+                    if let Err(e) = self.catalog.create_trace(name.clone()) {
                         tx.send(Err(e)).unwrap();
                     } else {
                         let cmd = WorkerCommand::CreateDerive {name, f};
@@ -91,7 +91,11 @@ impl Coord {
                         Err(e) => tx.send(Err(e)).unwrap(),
                     };
                 },
-                CoordCommand::Shutdown => break,
+                CoordCommand::Shutdown => {
+                    let cmd = WorkerCommand::Shutdown;
+                    self.broadcast(cmd);
+                    break;
+                }
             }
         }
     }
