@@ -14,7 +14,7 @@ use crate::error::Error;
 use crate::gid::GID;
 use crate::name::Name;
 use crate::row::Row;
-use crate::timely::{GenericWorker, Timestamp, Trace};
+use crate::typedef::{GenericWorker, Timestamp, Trace};
 
 #[derive(Clone)]
 pub enum WorkerCommand {

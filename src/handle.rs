@@ -9,7 +9,7 @@ use crate::coord::{CoordCommand};
 use crate::error::Error;
 use crate::name::Name;
 use crate::row::Row;
-use crate::timely::Trace;
+use crate::typedef::Trace;
 use crate::worker::{WorkerContext};
 
 #[derive(Clone)]

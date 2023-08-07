@@ -10,7 +10,7 @@ use crate::error::Error;
 use crate::gid::{GIDGen};
 use crate::name::Name;
 use crate::row::Row;
-use crate::timely::{Timestamp, Trace};
+use crate::typedef::{Timestamp, Trace};
 use crate::worker::{WorkerCommand, WorkerContext};
 
 // TODO drop input/trace
