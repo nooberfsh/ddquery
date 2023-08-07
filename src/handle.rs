@@ -12,11 +12,12 @@ use crate::row::Row;
 use crate::timely::Trace;
 use crate::worker::{WorkerContext};
 
-pub struct Client {
+#[derive(Clone)]
+pub struct Handle {
     cmd_tx: UnboundedSender<CoordCommand>,
 }
 
-impl Client {
+impl Handle {
     pub async fn create_input(&self, name: Name) -> Result<(), Error> {
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::CreateInput {name, tx};
@@ -56,7 +57,7 @@ impl Client {
     }
 }
 
-impl Drop for Client {
+impl Drop for Handle {
     fn drop(&mut self) {
         self.cmd_tx.send(CoordCommand::Shutdown).unwrap();
     }
