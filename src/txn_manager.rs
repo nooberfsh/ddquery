@@ -45,6 +45,11 @@ impl TxnManager {
             tx: self.tx.clone(),
         })
     }
+
+    pub fn read_complete(&mut self, txn: ReadTxn) {
+        let removed = self.read_txns.remove(&txn.uuid).unwrap();
+        assert_eq!(removed.time, txn.time);
+    }
 }
 
 impl Drop for ReadToken {

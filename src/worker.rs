@@ -110,7 +110,9 @@ impl<'a> Worker<'a>
 {
     fn run(mut self) {
         info!("worker[{}] start to serve", self.worker_id);
-        loop {
+
+        let mut shutdown = false;
+        while !shutdown {
             self.maintenance();
             self.worker.step_or_park(None);
 
@@ -119,11 +121,14 @@ impl<'a> Worker<'a>
             let cmds: Vec<_> = self.cmd_rx.try_iter().collect();
             for cmd in cmds {
                 if let WorkerCommand::Shutdown = cmd {
+                    shutdown = true;
                     break;
                 }
                 self.handle_command(cmd);
             }
         }
+
+        info!("worker[{}] shutdown", self.worker_id)
     }
 
     fn init_log(&mut self) {

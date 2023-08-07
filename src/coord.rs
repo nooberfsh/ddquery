@@ -56,53 +56,64 @@ impl Coord {
     pub async fn run(mut self) {
         info!("coord start to serve");
         loop {
-            match self.cmd_rx.recv().await.unwrap() {
-                CoordCommand::CreateInput { name, tx } => {
-                    if let Err(e) = self.catalog.create_input(name.clone()) {
-                        tx.send(Err(e)).unwrap();
-                    } else {
-                        let cmd = WorkerCommand::CreateInput {name};
-                        self.broadcast(cmd);
-                    }
-                },
-                CoordCommand::CreateDerive { name, f, tx } => {
-                    if let Err(e) = self.catalog.create_trace(name.clone()) {
-                        tx.send(Err(e)).unwrap();
-                    } else {
-                        let cmd = WorkerCommand::CreateDerive {name, f};
-                        self.broadcast(cmd);
-                    }
-                },
-                CoordCommand::Upsert { name, key, value, tx } => {
-                    if self.catalog.input_exists(&name) {
-                        tx.send(Err(Error::InputNotExists)).unwrap();
-                    } else {
-                        tx.send(Ok(())).unwrap();
-                        let time = self.advance_epoch();
-                        let c1 = WorkerCommand::Upsert {name, time, key, value};
-                        let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
-                        self.broadcast_n([c1,c2]);
-                    }
-                },
-                CoordCommand::Query { name, key, tx } => {
-                    match self.catalog.determine_trace_worker(&name, &key) {
-                        Ok(idx) =>  {
-                            let time = self.query_time();
-                            let token = self.txn_mananger.allocate_read_token(time);
-                            let uuid = token.txn.uuid;
-                            let cmd = WorkerCommand::Query { uuid, name, time, key, tx, token};
-                            self.unicast(cmd, idx);
+            tokio::select! {
+                cmd = self.cmd_rx.recv() => {
+                    match cmd.unwrap() {
+                        CoordCommand::CreateInput { name, tx } => {
+                            if let Err(e) = self.catalog.create_input(name.clone()) {
+                                tx.send(Err(e)).unwrap();
+                            } else {
+                                let cmd = WorkerCommand::CreateInput {name};
+                                self.broadcast(cmd);
+                            }
                         },
-                        Err(e) => tx.send(Err(e)).unwrap(),
-                    };
-                },
-                CoordCommand::Shutdown => {
-                    let cmd = WorkerCommand::Shutdown;
-                    self.broadcast(cmd);
-                    break;
+                        CoordCommand::CreateDerive { name, f, tx } => {
+                            if let Err(e) = self.catalog.create_trace(name.clone()) {
+                                tx.send(Err(e)).unwrap();
+                            } else {
+                                let cmd = WorkerCommand::CreateDerive {name, f};
+                                self.broadcast(cmd);
+                            }
+                        },
+                        CoordCommand::Upsert { name, key, value, tx } => {
+                            if self.catalog.input_exists(&name) {
+                                tx.send(Err(Error::InputNotExists)).unwrap();
+                            } else {
+                                tx.send(Ok(())).unwrap();
+                                let time = self.advance_epoch();
+                                let c1 = WorkerCommand::Upsert {name, time, key, value};
+                                let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
+                                self.broadcast_n([c1,c2]);
+                            }
+                        },
+                        CoordCommand::Query { name, key, tx } => {
+                            match self.catalog.determine_trace_worker(&name, &key) {
+                                Ok(idx) =>  {
+                                    let time = self.query_time();
+                                    let token = self.txn_mananger.allocate_read_token(time);
+                                    let uuid = token.txn.uuid;
+                                    let cmd = WorkerCommand::Query { uuid, name, time, key, tx, token};
+                                    self.unicast(cmd, idx);
+                                },
+                                Err(e) => tx.send(Err(e)).unwrap(),
+                            };
+                        },
+                        CoordCommand::Shutdown => {
+                            let cmd = WorkerCommand::Shutdown;
+                            self.broadcast(cmd);
+                            break;
+                        }
+                    }
+                }
+                read_txn = self.txn_mananger.rx.recv() => {
+                    let read_txn = read_txn.unwrap();
+                    info!("read txn: {} completed", read_txn.uuid);
+                    self.txn_mananger.read_complete(read_txn);
                 }
             }
         }
+
+        info!("coord shutdown")
     }
 
     fn advance_epoch(&mut self) -> Timestamp {
