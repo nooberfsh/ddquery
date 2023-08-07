@@ -5,6 +5,7 @@ use timely::communication::WorkerGuards;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tracing::info;
+use uuid::Uuid;
 
 use crate::catalog::Catalog;
 use crate::error::Error;
@@ -86,8 +87,8 @@ impl Coord {
                     match self.catalog.determine_trace_worker(&name, &key) {
                         Ok(idx) =>  {
                             let time = self.query_time();
-                            let gid = self.gid_gen.next();
-                            let cmd = WorkerCommand::Query {gid, name, time, key, tx};
+                            let uuid = Uuid::new_v4();
+                            let cmd = WorkerCommand::Query { uuid, name, time, key, tx};
                             self.unicast(cmd, idx);
                         },
                         Err(e) => tx.send(Err(e)).unwrap(),

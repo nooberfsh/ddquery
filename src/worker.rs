@@ -10,9 +10,9 @@ use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
+use uuid::Uuid;
 
 use crate::error::Error;
-use crate::gid::GID;
 use crate::name::Name;
 use crate::row::Row;
 use crate::typedef::{GenericWorker, Timestamp, Trace};
@@ -33,7 +33,7 @@ pub enum WorkerCommand {
         value: Option<Row>,
     },
     Query {
-        gid: GID,
+        uuid: Uuid,
         name: Name,
         time: Timestamp,
         key: Row,
@@ -168,12 +168,12 @@ impl<'a> Worker<'a>
                     self.state.trace.insert(name, trace);
                 }
             },
-            WorkerCommand::Query {gid, name, time, key, tx} => {
+            WorkerCommand::Query { uuid, name, time, key, tx} => {
                 let mut trace = self.state.trace.get(&name).unwrap().clone();
                 trace.set_logical_compaction(AntichainRef::new(&[time.clone()]));
                 trace.set_physical_compaction(AntichainRef::new(&[]));
                 let mut query = PendingQuery{
-                    gid,
+                    uuid,
                     name,
                     time,
                     key,
@@ -202,7 +202,7 @@ impl<'a> Worker<'a>
 }
 
 struct PendingQuery {
-    gid: GID,
+    uuid: Uuid,
     name: Name,
     time: Timestamp,
     key: Row,
