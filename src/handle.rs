@@ -14,6 +14,10 @@ use crate::worker::{WorkerContext};
 
 #[derive(Clone)]
 pub struct Handle {
+    inner: Arc<Inner>,
+}
+
+struct Inner {
     cmd_tx: UnboundedSender<CoordCommand>,
 }
 
@@ -21,7 +25,7 @@ impl Handle {
     pub async fn create_input(&self, name: Name) -> Result<(), Error> {
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::CreateInput {name, tx};
-        self.cmd_tx.send(cmd).unwrap();
+        self.inner.cmd_tx.send(cmd).unwrap();
         rx.await.unwrap()
     }
 
@@ -29,14 +33,14 @@ impl Handle {
         let f = Arc::new(f);
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::CreateDerive {name, f, tx};
-        self.cmd_tx.send(cmd).unwrap();
+        self.inner.cmd_tx.send(cmd).unwrap();
         rx.await.unwrap()
     }
 
     pub async fn query(&self, name: Name, key: Row) -> impl Stream<Item=Result<Vec<Row>, Error>> {
         let (tx, rx) = unbounded_channel();
         let cmd = CoordCommand::Query {name, key, tx};
-        self.cmd_tx.send(cmd).unwrap();
+        self.inner.cmd_tx.send(cmd).unwrap();
         UnboundedReceiverStream::new(rx)
     }
 
@@ -44,7 +48,7 @@ impl Handle {
         let value = Some(value);
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::Upsert {name, key, value, tx};
-        self.cmd_tx.send(cmd).unwrap();
+        self.inner.cmd_tx.send(cmd).unwrap();
         rx.await.unwrap()
     }
 
@@ -52,13 +56,13 @@ impl Handle {
         let value = None;
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::Upsert {name, key, value, tx};
-        self.cmd_tx.send(cmd).unwrap();
+        self.inner.cmd_tx.send(cmd).unwrap();
         rx.await.unwrap()
     }
 }
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        self.cmd_tx.send(CoordCommand::Shutdown).unwrap();
+        self.inner.cmd_tx.send(CoordCommand::Shutdown).unwrap();
     }
 }
