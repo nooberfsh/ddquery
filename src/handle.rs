@@ -1,9 +1,10 @@
 use std::sync::Arc;
-use futures::Stream;
 
+use futures::Stream;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::oneshot;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::info;
 
 use crate::coord::{CoordCommand};
 use crate::error::Error;
@@ -22,6 +23,12 @@ struct Inner {
 }
 
 impl Handle {
+    pub (crate) fn new(cmd_tx: UnboundedSender<CoordCommand>) -> Self {
+        info!("create handle");
+        let inner = Arc::new(Inner {cmd_tx});
+        Handle{inner}
+    }
+
     pub async fn create_input(&self, name: Name) -> Result<(), Error> {
         let (tx, rx) = oneshot::channel();
         let cmd = CoordCommand::CreateInput {name, tx};
@@ -61,8 +68,9 @@ impl Handle {
     }
 }
 
-impl Drop for Handle {
+impl Drop for Inner {
     fn drop(&mut self) {
-        self.inner.cmd_tx.send(CoordCommand::Shutdown).unwrap();
+        info!("shutdown ddquery");
+        self.cmd_tx.send(CoordCommand::Shutdown).unwrap();
     }
 }

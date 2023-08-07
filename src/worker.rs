@@ -9,6 +9,7 @@ use timely::communication::WorkerGuards;
 use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::info;
 
 use crate::error::Error;
 use crate::gid::GID;
@@ -106,6 +107,7 @@ pub fn serve(config: Config) -> Result<WorkerGuards<()>, Error> {
 impl<'a> Worker<'a>
 {
     fn run(mut self) {
+        info!("worker[{}] start to serve", self.worker_id);
         loop {
             self.maintenance();
             self.worker.step_or_park(None);

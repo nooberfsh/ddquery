@@ -9,6 +9,7 @@ edition = "2021"
 # general
 anyhow = "1.0.71"
 crossbeam-channel = "0.5.8"
+tracing = "0.1.37"
 # dataflow
 timely = { git = "https://github.com/TimelyDataflow/timely-dataflow" }
 differential-dataflow = { git = "https://github.com/TimelyDataflow/differential-dataflow" }

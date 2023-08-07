@@ -13,6 +13,14 @@ pub struct Catalog {
 }
 
 impl Catalog {
+    pub fn new(workers: usize) -> Self {
+        Catalog {
+            workers,
+            input: HashSet::new(),
+            trace: HashSet::new(),
+        }
+    }
+
     pub fn create_input(&mut self, name: Name) -> Result<(), Error> {
         self.check_name(&name)?;
         self.input.insert(name);
@@ -41,7 +49,11 @@ impl Catalog {
         }
     }
 
-    pub fn check_name(&self, name: &Name) -> Result<(), Error> {
-        todo!()
+    fn check_name(&self, name: &Name) -> Result<(), Error> {
+        if self.input.contains(name) || self.trace.contains(name) {
+            Err(Error::NameAlreadyExists)
+        } else {
+            Ok(())
+        }
     }
 }

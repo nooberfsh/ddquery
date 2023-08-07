@@ -4,6 +4,7 @@ use crossbeam_channel::Sender;
 use timely::communication::WorkerGuards;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
+use tracing::info;
 
 use crate::catalog::Catalog;
 use crate::error::Error;
@@ -40,17 +41,18 @@ pub enum CoordCommand {
 }
 
 pub struct Coord {
-    epoch: Timestamp,
-    gid_gen: GIDGen,
-    catalog: Catalog,
-    cmd_rx: UnboundedReceiver<CoordCommand>,
+    pub (crate) epoch: Timestamp,
+    pub (crate) gid_gen: GIDGen,
+    pub (crate) catalog: Catalog,
+    pub (crate) cmd_rx: UnboundedReceiver<CoordCommand>,
     // worker and channel
-    worker_guards: WorkerGuards<()>,
-    worker_txs: Vec<Sender<WorkerCommand>>,
+    pub (crate) worker_guards: WorkerGuards<()>,
+    pub (crate) worker_txs: Vec<Sender<WorkerCommand>>,
 }
 
 impl Coord {
     pub async fn run(mut self) {
+        info!("coord start to serve");
         loop {
             match self.cmd_rx.recv().await.unwrap() {
                 CoordCommand::CreateInput { name, tx } => {
