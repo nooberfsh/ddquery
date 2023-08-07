@@ -3,6 +3,7 @@ use tracing::info;
 
 use crate::catalog::Catalog;
 use crate::gid::GIDGen;
+use crate::txn_manager::TxnManager;
 
 pub mod row;
 pub mod coord;
@@ -13,6 +14,7 @@ pub mod name;
 pub mod error;
 pub mod gid;
 pub mod catalog;
+pub mod txn_manager;
 
 pub struct Config {
     pub workers: usize,
@@ -45,6 +47,7 @@ pub async fn start(config: Config) -> Result<handle::Handle, error::Error> {
         epoch: 0,
         gid_gen: GIDGen::new(),
         catalog: Catalog::new(config.workers),
+        txn_mananger: TxnManager::new(),
         cmd_rx: rx,
         worker_guards: guards,
         worker_txs: txs,

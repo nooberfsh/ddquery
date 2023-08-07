@@ -12,6 +12,7 @@ use crate::error::Error;
 use crate::gid::{GIDGen};
 use crate::name::Name;
 use crate::row::Row;
+use crate::txn_manager::TxnManager;
 use crate::typedef::{Timestamp, Trace};
 use crate::worker::{WorkerCommand, WorkerContext};
 
@@ -45,6 +46,7 @@ pub struct Coord {
     pub (crate) epoch: Timestamp,
     pub (crate) gid_gen: GIDGen,
     pub (crate) catalog: Catalog,
+    pub (crate) txn_mananger: TxnManager,
     pub (crate) cmd_rx: UnboundedReceiver<CoordCommand>,
     // worker and channel
     pub (crate) worker_guards: WorkerGuards<()>,
