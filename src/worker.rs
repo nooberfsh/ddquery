@@ -15,6 +15,7 @@ use uuid::Uuid;
 use crate::error::Error;
 use crate::name::Name;
 use crate::row::Row;
+use crate::txn_manager::ReadToken;
 use crate::typedef::{GenericWorker, Timestamp, Trace};
 
 #[derive(Clone)]
@@ -37,6 +38,7 @@ pub enum WorkerCommand {
         name: Name,
         time: Timestamp,
         key: Row,
+        token: Arc<ReadToken>,
         tx: UnboundedSender<Result<Vec<Row>, Error>>,
     },
     AdvanceInput {
@@ -168,7 +170,7 @@ impl<'a> Worker<'a>
                     self.state.trace.insert(name, trace);
                 }
             },
-            WorkerCommand::Query { uuid, name, time, key, tx} => {
+            WorkerCommand::Query { uuid, name, time, key, tx, token} => {
                 let mut trace = self.state.trace.get(&name).unwrap().clone();
                 trace.set_logical_compaction(AntichainRef::new(&[time.clone()]));
                 trace.set_physical_compaction(AntichainRef::new(&[]));
@@ -178,6 +180,7 @@ impl<'a> Worker<'a>
                     time,
                     key,
                     trace,
+                    _token: token,
                     tx: Some(tx),
                 };
                 if !query.attempt() {
@@ -207,6 +210,7 @@ struct PendingQuery {
     time: Timestamp,
     key: Row,
     trace: Trace,
+    _token: Arc<ReadToken>,
     tx: Option<UnboundedSender<Result<Vec<Row>, Error>>>,
 }
 

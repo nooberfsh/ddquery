@@ -15,12 +15,12 @@ pub struct TxnManager {
 
 #[derive(Clone)]
 pub struct ReadTxn {
-    uuid: Uuid,
-    time: Timestamp,
+    pub uuid: Uuid,
+    pub time: Timestamp,
 }
 
 pub struct ReadToken {
-    txn: ReadTxn,
+    pub txn: ReadTxn,
     tx: UnboundedSender<ReadTxn>,
 }
 
@@ -34,7 +34,7 @@ impl TxnManager {
         }
     }
 
-    pub fn allocate(&mut self, time: Timestamp) -> Arc<ReadToken> {
+    pub fn allocate_read_token(&mut self, time: Timestamp) -> Arc<ReadToken> {
         let txn = ReadTxn {
             uuid: Uuid::new_v4(),
             time,
