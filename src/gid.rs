@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct GID (pub (crate) u64);
 
 pub struct GIDGen(u64);
