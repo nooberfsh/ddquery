@@ -70,6 +70,7 @@ impl<K, V> Coord<K, V>
                             } else {
                                 let cmd = WorkerCommand::CreateInput {name};
                                 self.broadcast(cmd);
+                                tx.send(Ok(())).unwrap();
                             }
                         },
                         CoordCommand::CreateDerive { name, f, tx } => {
@@ -78,17 +79,18 @@ impl<K, V> Coord<K, V>
                             } else {
                                 let cmd = WorkerCommand::CreateDerive {name, f};
                                 self.broadcast(cmd);
+                                tx.send(Ok(())).unwrap();
                             }
                         },
                         CoordCommand::Upsert { name, key, value, tx } => {
-                            if self.catalog.input_exists(&name) {
+                            if !self.catalog.input_exists(&name) {
                                 tx.send(Err(Error::InputNotExists)).unwrap();
                             } else {
-                                tx.send(Ok(())).unwrap();
                                 let time = self.advance_epoch();
                                 let c1 = WorkerCommand::Upsert {name, time, key, value};
                                 let c2 = WorkerCommand::AdvanceInput {time: self.epoch};
                                 self.broadcast_n([c1,c2]);
+                                tx.send(Ok(())).unwrap();
                             }
                         },
                         CoordCommand::Query { name, key, tx } => {
