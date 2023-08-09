@@ -22,15 +22,21 @@ impl Catalog {
     }
 
     pub fn create_input(&mut self, name: Name) -> Result<(), Error> {
-        self.check_name(&name)?;
-        self.input.insert(name);
-        Ok(())
+        if self.input_exists(&name) {
+            Err(Error::InputAlreadyExists(name))
+        } else {
+            self.input.insert(name);
+            Ok(())
+        }
     }
 
     pub fn create_trace(&mut self, name: Name) -> Result<(), Error> {
-        self.check_name(&name)?;
-        self.trace.insert(name);
-        Ok(())
+        if self.trace_exists(&name) {
+            Err(Error::TraceAlreadyExists(name))
+        } else {
+            self.trace.insert(name);
+            Ok(())
+        }
     }
 
     pub fn input_exists(&self, name: &Name) -> bool {
@@ -46,14 +52,6 @@ impl Catalog {
             Ok(key.hashed() as usize % self.workers)
         } else {
             Err(Error::TraceNotExist(name.clone()))
-        }
-    }
-
-    fn check_name(&self, name: &Name) -> Result<(), Error> {
-        if self.input.contains(name) || self.trace.contains(name) {
-            Err(Error::NameAlreadyExists)
-        } else {
-            Ok(())
         }
     }
 }

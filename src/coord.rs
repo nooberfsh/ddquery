@@ -85,7 +85,7 @@ impl<K, V> Coord<K, V>
                         },
                         CoordCommand::Upsert { name, key, value, tx } => {
                             if !self.catalog.input_exists(&name) {
-                                tx.send(Err(Error::InputNotExists)).unwrap();
+                                tx.send(Err(Error::InputNotExists(name))).unwrap();
                             } else {
                                 let time = self.advance_epoch();
                                 let c1 = WorkerCommand::Upsert {name, time, key, value};

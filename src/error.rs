@@ -2,8 +2,9 @@ use crate::name::Name;
 
 #[derive(Debug)]
 pub enum Error {
-    InputNotExists,
+    InputNotExists(Name),
     TraceNotExist(Name),
     FailedToStartWorkers(String),
-    NameAlreadyExists,
+    InputAlreadyExists(Name),
+    TraceAlreadyExists(Name),
 }
