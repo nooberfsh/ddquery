@@ -54,6 +54,7 @@ pub async fn start<K, V>(config: Config) -> Result<handle::Handle<K, V>, error::
         cmd_rx: rx,
         worker_guards: guards,
         worker_txs: txs,
+        closed: false,
     }.run());
 
     info!("ddquery started");

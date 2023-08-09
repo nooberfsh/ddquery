@@ -53,6 +53,7 @@ pub struct Coord<K, V>
     // worker and channel
     pub (crate) worker_guards: WorkerGuards<()>,
     pub (crate) worker_txs: Vec<Sender<WorkerCommand<K, V>>>,
+    pub (crate) closed: bool,
 }
 
 impl<K, V> Coord<K, V>
@@ -108,6 +109,7 @@ impl<K, V> Coord<K, V>
                         CoordCommand::Shutdown => {
                             let cmd = WorkerCommand::Shutdown;
                             self.broadcast(cmd);
+                            self.closed = true;
                             break;
                         }
                     }
@@ -156,6 +158,18 @@ impl<K, V> Coord<K, V>
         }
         for handle in self.worker_guards.guards() {
             handle.thread().unpark();
+        }
+    }
+}
+
+impl<K, V> Drop for Coord<K, V>
+    where K: Data, V: Data
+{
+    fn drop(&mut self) {
+        if !self.closed {
+            let cmd = WorkerCommand::Shutdown;
+            self.broadcast(cmd);
+            self.closed = true;
         }
     }
 }
