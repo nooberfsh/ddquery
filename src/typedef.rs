@@ -16,10 +16,15 @@ pub type Trace<K, V> = TraceAgent<Spine<K, V>>;
 
 trait_set! {
     pub trait Data = Eq
-    + PartialEq + Ord + PartialOrd + Send + Sync + Clone
-    + Hash
-    + Debug
-    + Abomonation
-    + 'static
+                   + PartialEq
+                   + Ord
+                   + PartialOrd
+                   + Send
+                   + Sync
+                   + Clone
+                   + Hash
+                   + Debug
+                   + Abomonation
+                   + 'static
     ;
 }
