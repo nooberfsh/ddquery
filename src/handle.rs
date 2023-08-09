@@ -59,6 +59,18 @@ impl<K, V> Handle<K, V>
         UnboundedReceiverStream::new(rx)
     }
 
+    pub async fn query_one<N: Into<Name>>(&self, name: N, key: K) -> Result<Option<V>, Error> {
+        let name = name.into();
+        let (tx, mut rx) = unbounded_channel();
+        let cmd = CoordCommand::Query {name, key, tx};
+        self.inner.cmd_tx.send(cmd).unwrap();
+        if let Some(d) = rx.recv().await {
+            d.map(|mut v| v.pop())
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn insert<N: Into<Name>>(&self, name: N, key: K, value: V) -> Result<(), Error> {
         let name = name.into();
         let value = Some(value);

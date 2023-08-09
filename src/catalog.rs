@@ -45,7 +45,7 @@ impl Catalog {
         if self.trace_exists(name) {
             Ok(key.hashed() as usize % self.workers)
         } else {
-            Err(Error::TraceNotExist)
+            Err(Error::TraceNotExist(name.clone()))
         }
     }
 
