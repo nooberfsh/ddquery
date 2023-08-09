@@ -71,12 +71,13 @@ where
     V: Data,
 {
     pub async fn run(mut self) {
-        info!("coord start to serve");
+        info!("start to serve");
         loop {
             tokio::select! {
                 cmd = self.cmd_rx.recv() => {
                     match cmd.unwrap() {
                         CoordCommand::CreateInputAndTrace { name, tx } => {
+                            info!("create input and trace: {}", name);
                             if let Err(e) = self.catalog.create_input_and_trace(name.clone()) {
                                 tx.send(Err(e)).unwrap();
                             } else {
@@ -86,6 +87,7 @@ where
                             }
                         },
                         CoordCommand::CreateDerive { name, f, tx } => {
+                            info!("create derive: {}", name);
                             if let Err(e) = self.catalog.create_trace(name.clone()) {
                                 tx.send(Err(e)).unwrap();
                             } else {
@@ -118,6 +120,7 @@ where
                             };
                         },
                         CoordCommand::Shutdown => {
+                            info!("begin to shutdown");
                             let cmd = WorkerCommand::Shutdown;
                             self.broadcast(cmd);
                             self.closed = true;
@@ -133,12 +136,13 @@ where
             }
         }
 
-        info!("coord shutdown")
+        info!("shutdown")
     }
 
     fn advance_epoch(&mut self) -> Timestamp {
         let ret = self.epoch;
         self.epoch += 1;
+        info!("advance epoch: {} => {}", ret, self.epoch);
         ret
     }
 

@@ -1,9 +1,11 @@
+use std::time::Duration;
 use timely::WorkerConfig;
 
 #[tokio::test]
 async fn smoke() {
+    tracing_subscriber::fmt::init();
     let config = ddquery::Config {
-        workers: 4,
+        workers: 1,
         worker_config: WorkerConfig::default(),
     };
     let handle = ddquery::start(config).await.unwrap();
