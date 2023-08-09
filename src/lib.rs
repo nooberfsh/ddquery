@@ -4,8 +4,8 @@ use tracing::info;
 use crate::catalog::Catalog;
 use crate::gid::GIDGen;
 use crate::txn_manager::TxnManager;
+use crate::typedef::Data;
 
-pub mod row;
 pub mod coord;
 pub mod typedef;
 pub mod worker;
@@ -21,7 +21,9 @@ pub struct Config {
     pub worker_config: WorkerConfig,
 }
 
-pub async fn start(config: Config) -> Result<handle::Handle, error::Error> {
+pub async fn start<K, V>(config: Config) -> Result<handle::Handle<K, V>, error::Error>
+    where K: Data, V: Data
+{
     info!("start ddquery");
 
     assert!(config.workers > 0);

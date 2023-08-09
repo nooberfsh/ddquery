@@ -6,12 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# general
-anyhow = "1.0.71"
-crossbeam-channel = "0.5.8"
-tracing = "0.1.37"
-compact_str = "0.7.1"
-uuid = { version = "1.4.1", features = ["v4", "fast-rng"]}
 # dataflow
 timely = { git = "https://github.com/TimelyDataflow/timely-dataflow" }
 differential-dataflow = { git = "https://github.com/TimelyDataflow/differential-dataflow" }
@@ -21,3 +15,10 @@ abomonation_derive = "0.5.0"
 futures = "0.3.28"
 tokio = { version = "1.29.1", features = ["full"] }
 tokio-stream = "0.1.14"
+# general
+anyhow = "1.0.71"
+crossbeam-channel = "0.5.8"
+tracing = "0.1.37"
+compact_str = "0.7.1"
+uuid = { version = "1.4.1", features = ["v4", "fast-rng"]}
+trait-set = "0.3.0"

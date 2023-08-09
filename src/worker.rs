@@ -14,32 +14,33 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::name::Name;
-use crate::row::Row;
 use crate::txn_manager::ReadToken;
-use crate::typedef::{GenericWorker, Timestamp, Trace};
+use crate::typedef::{Data, GenericWorker, Timestamp, Trace};
 
 #[derive(Clone)]
-pub enum WorkerCommand {
+pub enum WorkerCommand<K, V>
+    where K: Data, V: Data
+{
     CreateInput {
         name: Name,
     },
     CreateDerive {
         name: Name,
-        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a>) -> Option<Trace> + Send + Sync + 'static>,
+        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a, K, V>) -> Option<Trace<K, V>> + Send + Sync + 'static>,
     },
     Upsert {
         name: Name,
         time: Timestamp,
-        key: Row,
-        value: Option<Row>,
+        key: K,
+        value: Option<V>,
     },
     Query {
         uuid: Uuid,
         name: Name,
         time: Timestamp,
-        key: Row,
+        key: K,
         token: Arc<ReadToken>,
-        tx: UnboundedSender<Result<Vec<Row>, Error>>,
+        tx: UnboundedSender<Result<Vec<V>, Error>>,
     },
     AdvanceInput {
         time: Timestamp,
@@ -48,32 +49,40 @@ pub enum WorkerCommand {
     Shutdown,
 }
 
-pub struct WorkerContext<'a> {
+pub struct WorkerContext<'a, K, V>
+    where K: Data, V: Data
+{
     pub worker: &'a mut GenericWorker,
-    pub state: &'a WorkerState,
+    pub state: &'a WorkerState<K, V>,
 }
 
-#[derive(Default)]
-pub struct WorkerState {
-    pub inputs: HashMap<Name, InputHandle<Timestamp, (Row, Option<Row>, Timestamp)>>,
-    pub trace: HashMap<Name, Trace>,
+pub struct WorkerState<K, V>
+    where K: Data, V: Data
+{
+    pub inputs: HashMap<Name, InputHandle<Timestamp, (K, Option<V>, Timestamp)>>,
+    pub trace: HashMap<Name, Trace<K, V>>,
 }
 
-pub struct Worker<'a>
+pub struct Worker<'a, K, V>
+    where K: Data, V: Data
 {
     worker_id: usize,
-    state: WorkerState,
-    pending_queries: Vec<PendingQuery>,
-    cmd_rx: Receiver<WorkerCommand>,
+    state: WorkerState<K, V>,
+    pending_queries: Vec<PendingQuery<K, V>>,
+    cmd_rx: Receiver<WorkerCommand<K, V>>,
     worker: &'a mut GenericWorker,
 }
 
-pub struct Config {
-    pub cmd_rxs: Vec<Receiver<WorkerCommand>>,
+pub struct Config<K, V>
+    where K: Data, V: Data
+{
+    pub cmd_rxs: Vec<Receiver<WorkerCommand<K, V>>>,
     pub timely_worker: WorkerConfig,
 }
 
-pub fn serve(config: Config) -> Result<WorkerGuards<()>, Error> {
+pub fn serve<K, V>(config: Config<K, V>) -> Result<WorkerGuards<()>, Error>
+    where K: Data, V: Data
+{
     let workers = config.cmd_rxs.len();
     assert!(workers > 0);
 
@@ -96,7 +105,10 @@ pub fn serve(config: Config) -> Result<WorkerGuards<()>, Error> {
             let worker_id = timely_worker.index();
             Worker {
                 worker_id,
-                state: WorkerState::default(),
+                state: WorkerState {
+                    inputs: HashMap::new(),
+                    trace: HashMap::new(),
+                },
                 pending_queries: vec![],
                 cmd_rx,
                 worker: timely_worker,
@@ -106,7 +118,8 @@ pub fn serve(config: Config) -> Result<WorkerGuards<()>, Error> {
     ).map_err(Error::FailedToStartWorkers)
 }
 
-impl<'a> Worker<'a>
+impl<'a, K, V> Worker<'a, K, V>
+    where K: Data, V: Data
 {
     fn run(mut self) {
         info!("worker[{}] start to serve", self.worker_id);
@@ -157,14 +170,14 @@ impl<'a> Worker<'a>
         }
     }
 
-    fn ctx(&mut self) -> WorkerContext<'_> {
+    fn ctx(&mut self) -> WorkerContext<'_, K ,V> {
         WorkerContext {
             worker: &mut *self.worker,
             state: &self.state
         }
     }
 
-    fn handle_command(&mut self, cmd: WorkerCommand) {
+    fn handle_command(&mut self, cmd: WorkerCommand<K, V>) {
         match cmd {
             WorkerCommand::CreateInput { name} => {
                 let input = InputHandle::new();
@@ -209,17 +222,21 @@ impl<'a> Worker<'a>
     }
 }
 
-struct PendingQuery {
+struct PendingQuery<K, V>
+    where K: Data, V: Data
+{
     uuid: Uuid,
     name: Name,
     time: Timestamp,
-    key: Row,
-    trace: Trace,
+    key: K,
+    trace: Trace<K, V>,
     _token: Arc<ReadToken>,
-    tx: Option<UnboundedSender<Result<Vec<Row>, Error>>>,
+    tx: Option<UnboundedSender<Result<Vec<V>, Error>>>,
 }
 
-impl PendingQuery {
+impl<K, V> PendingQuery<K, V>
+    where K: Data, V: Data
+{
     fn finished(&self) -> bool {
         self.tx.is_none()
     }
@@ -238,7 +255,9 @@ impl PendingQuery {
     }
 }
 
-fn read_key(trace: &mut Trace, key: &Row, time: &Timestamp) -> Vec<Row> {
+fn read_key<K, V>(trace: &mut Trace<K, V>, key: &K, time: &Timestamp) -> Vec<V>
+    where K: Data, V: Data
+{
     let mut ret = vec![];
     let (mut cursor, storage) = trace.cursor();
     cursor.seek_key(&storage, key);

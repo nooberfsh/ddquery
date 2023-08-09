@@ -4,7 +4,7 @@ use differential_dataflow::Hashable;
 
 use crate::error::Error;
 use crate::name::Name;
-use crate::row::Row;
+use crate::typedef::Data;
 
 pub struct Catalog {
     workers: usize,
@@ -41,7 +41,7 @@ impl Catalog {
         self.trace.get(name).is_some()
     }
 
-    pub fn determine_trace_worker(&self, name: &Name, key: &Row) -> Result<usize, Error> {
+    pub fn determine_trace_worker<K: Data>(&self, name: &Name, key: &K) -> Result<usize, Error> {
         if self.trace_exists(name) {
             Ok(key.hashed() as usize % self.workers)
         } else {

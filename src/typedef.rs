@@ -1,12 +1,21 @@
+use std::hash::Hash;
+
 use differential_dataflow::operators::arrange::TraceAgent;
 use differential_dataflow::trace::implementations::ord::OrdValSpine;
 use timely::communication::allocator::Generic;
 use timely::dataflow::scopes::Child;
-
-use crate::row::Row;
+use trait_set::trait_set;
 
 pub type Timestamp = u64;
 pub type GenericWorker = timely::worker::Worker<Generic>;
 pub type Scope<'a> = Child<'a, GenericWorker, Timestamp>;
 pub type Spine<K, V> = OrdValSpine<K, V, Timestamp, isize>;
-pub type Trace = TraceAgent<Spine<Row, Row>>;
+pub type Trace<K, V> = TraceAgent<Spine<K, V>>;
+
+trait_set! {
+    pub trait Data = Eq
+    + PartialEq + Ord + PartialOrd + Send + Sync + Clone
+    + Hash
+    + 'static
+    ;
+}

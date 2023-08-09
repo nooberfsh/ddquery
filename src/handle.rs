@@ -9,21 +9,26 @@ use tracing::info;
 use crate::coord::{CoordCommand};
 use crate::error::Error;
 use crate::name::Name;
-use crate::row::Row;
-use crate::typedef::Trace;
+use crate::typedef::{Data, Trace};
 use crate::worker::{WorkerContext};
 
 #[derive(Clone)]
-pub struct Handle {
-    inner: Arc<Inner>,
+pub struct Handle<K, V>
+    where K: Data, V: Data
+{
+    inner: Arc<Inner<K, V>>,
 }
 
-struct Inner {
-    cmd_tx: UnboundedSender<CoordCommand>,
+struct Inner<K, V>
+    where K: Data, V: Data
+{
+    cmd_tx: UnboundedSender<CoordCommand<K, V>>,
 }
 
-impl Handle {
-    pub (crate) fn new(cmd_tx: UnboundedSender<CoordCommand>) -> Self {
+impl<K, V> Handle<K, V>
+    where K: Data, V: Data
+{
+    pub (crate) fn new(cmd_tx: UnboundedSender<CoordCommand<K, V>>) -> Self {
         info!("create handle");
         let inner = Arc::new(Inner {cmd_tx});
         Handle{inner}
@@ -37,7 +42,7 @@ impl Handle {
         rx.await.unwrap()
     }
 
-    pub async fn create_derive<N: Into<Name>>(&self, name: N, f: impl for<'a> Fn(&mut WorkerContext<'a>) -> Option<Trace> + Send + Sync + 'static) -> Result<(), Error> {
+    pub async fn create_derive<N: Into<Name>>(&self, name: N, f: impl for<'a> Fn(&mut WorkerContext<'a, K, V>) -> Option<Trace<K, V>> + Send + Sync + 'static) -> Result<(), Error> {
         let name = name.into();
         let f = Arc::new(f);
         let (tx, rx) = oneshot::channel();
@@ -46,7 +51,7 @@ impl Handle {
         rx.await.unwrap()
     }
 
-    pub async fn query<N: Into<Name>>(&self, name: N, key: Row) -> impl Stream<Item=Result<Vec<Row>, Error>> {
+    pub async fn query<N: Into<Name>>(&self, name: N, key: K) -> impl Stream<Item=Result<Vec<V>, Error>> {
         let name = name.into();
         let (tx, rx) = unbounded_channel();
         let cmd = CoordCommand::Query {name, key, tx};
@@ -54,7 +59,7 @@ impl Handle {
         UnboundedReceiverStream::new(rx)
     }
 
-    pub async fn insert<N: Into<Name>>(&self, name: N, key: Row, value: Row) -> Result<(), Error> {
+    pub async fn insert<N: Into<Name>>(&self, name: N, key: K, value: V) -> Result<(), Error> {
         let name = name.into();
         let value = Some(value);
         let (tx, rx) = oneshot::channel();
@@ -63,7 +68,7 @@ impl Handle {
         rx.await.unwrap()
     }
 
-    pub async fn delete<N: Into<Name>>(&self, name: N, key: Row) -> Result<(), Error> {
+    pub async fn delete<N: Into<Name>>(&self, name: N, key: K) -> Result<(), Error> {
         let name = name.into();
         let value = None;
         let (tx, rx) = oneshot::channel();
@@ -73,7 +78,9 @@ impl Handle {
     }
 }
 
-impl Drop for Inner {
+impl<K, V> Drop for Inner<K, V>
+    where K: Data, V: Data
+{
     fn drop(&mut self) {
         info!("shutdown ddquery");
         self.cmd_tx.send(CoordCommand::Shutdown).unwrap();

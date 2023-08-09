@@ -10,49 +10,54 @@ use crate::catalog::Catalog;
 use crate::error::Error;
 use crate::gid::{GIDGen};
 use crate::name::Name;
-use crate::row::Row;
 use crate::txn_manager::TxnManager;
-use crate::typedef::{Timestamp, Trace};
+use crate::typedef::{Data, Timestamp, Trace};
 use crate::worker::{WorkerCommand, WorkerContext};
 
 // TODO drop input/trace
-pub enum CoordCommand {
+pub enum CoordCommand<K, V>
+where K: Data, V: Data
+{
     CreateInput {
         name: Name,
         tx: oneshot::Sender<Result<(), Error>>,
     },
     CreateDerive {
         name: Name,
-        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a>) -> Option<Trace> + Send + Sync + 'static>,
+        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a, K ,V>) -> Option<Trace<K, V>> + Send + Sync + 'static>,
         tx: oneshot::Sender<Result<(), Error>>,
     },
     Upsert {
         name: Name,
-        key: Row,
-        value: Option<Row>,
+        key: K,
+        value: Option<V>,
         tx: oneshot::Sender<Result<(), Error>>,
     },
     Query {
         name: Name,
-        key: Row,
-        tx: UnboundedSender<Result<Vec<Row>, Error>>,
+        key: K,
+        tx: UnboundedSender<Result<Vec<V>, Error>>,
     },
     // TODO: support gracefully shutdown
     Shutdown
 }
 
-pub struct Coord {
+pub struct Coord<K, V>
+    where K: Data, V: Data
+{
     pub (crate) epoch: Timestamp,
     pub (crate) gid_gen: GIDGen,
     pub (crate) catalog: Catalog,
     pub (crate) txn_mananger: TxnManager,
-    pub (crate) cmd_rx: UnboundedReceiver<CoordCommand>,
+    pub (crate) cmd_rx: UnboundedReceiver<CoordCommand<K, V>>,
     // worker and channel
     pub (crate) worker_guards: WorkerGuards<()>,
-    pub (crate) worker_txs: Vec<Sender<WorkerCommand>>,
+    pub (crate) worker_txs: Vec<Sender<WorkerCommand<K, V>>>,
 }
 
-impl Coord {
+impl<K, V> Coord<K, V>
+    where K: Data, V: Data
+{
     pub async fn run(mut self) {
         info!("coord start to serve");
         loop {
@@ -127,12 +132,12 @@ impl Coord {
         self.epoch - 1
     }
 
-    fn unicast(&mut self, cmd: WorkerCommand, idx: usize) {
+    fn unicast(&mut self, cmd: WorkerCommand<K, V>, idx: usize) {
         self.worker_txs[idx].send(cmd).unwrap();
         self.worker_guards.guards()[idx].thread().unpark();
     }
 
-    fn broadcast(&mut self, cmd: WorkerCommand) {
+    fn broadcast(&mut self, cmd: WorkerCommand<K, V>) {
         for tx in &mut self.worker_txs {
             tx.send(cmd.clone()).unwrap();
         }
@@ -141,7 +146,7 @@ impl Coord {
         }
     }
 
-    fn broadcast_n<const N: usize>(&mut self, cmds: [WorkerCommand; N]) {
+    fn broadcast_n<const N: usize>(&mut self, cmds: [WorkerCommand<K, V>; N]) {
         for tx in &mut self.worker_txs {
             for cmd in &cmds {
                 tx.send(cmd.clone()).unwrap();
