@@ -18,7 +18,7 @@ use crate::worker::{WorkerCommand, WorkerContext};
 pub enum CoordCommand<K, V>
 where K: Data, V: Data
 {
-    CreateInput {
+    CreateInputAndTrace {
         name: Name,
         tx: oneshot::Sender<Result<(), Error>>,
     },
@@ -65,11 +65,11 @@ impl<K, V> Coord<K, V>
             tokio::select! {
                 cmd = self.cmd_rx.recv() => {
                     match cmd.unwrap() {
-                        CoordCommand::CreateInput { name, tx } => {
-                            if let Err(e) = self.catalog.create_input(name.clone()) {
+                        CoordCommand::CreateInputAndTrace { name, tx } => {
+                            if let Err(e) = self.catalog.create_input_and_trace(name.clone()) {
                                 tx.send(Err(e)).unwrap();
                             } else {
-                                let cmd = WorkerCommand::CreateInput {name};
+                                let cmd = WorkerCommand::CreateInputAndTrace {name};
                                 self.broadcast(cmd);
                                 tx.send(Ok(())).unwrap();
                             }

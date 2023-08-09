@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::Receiver;
+use differential_dataflow::operators::arrange::upsert;
 use differential_dataflow::trace::{Cursor, TraceReader};
 use timely::dataflow::InputHandle;
 use timely::{PartialOrder, WorkerConfig};
 use timely::communication::WorkerGuards;
+use timely::dataflow::operators::Input;
 use timely::progress::Antichain;
 use timely::progress::frontier::AntichainRef;
 use tokio::sync::mpsc::UnboundedSender;
@@ -15,13 +17,13 @@ use uuid::Uuid;
 use crate::error::Error;
 use crate::name::Name;
 use crate::txn_manager::ReadToken;
-use crate::typedef::{Data, GenericWorker, Timestamp, Trace};
+use crate::typedef::{Data, GenericWorker, Spine, Timestamp, Trace};
 
 #[derive(Clone)]
 pub enum WorkerCommand<K, V>
     where K: Data, V: Data
 {
-    CreateInput {
+    CreateInputAndTrace {
         name: Name,
     },
     CreateDerive {
@@ -179,9 +181,14 @@ impl<'a, K, V> Worker<'a, K, V>
 
     fn handle_command(&mut self, cmd: WorkerCommand<K, V>) {
         match cmd {
-            WorkerCommand::CreateInput { name} => {
-                let input = InputHandle::new();
-                self.state.inputs.insert(name, input);
+            WorkerCommand::CreateInputAndTrace { name} => {
+                let (input, trace) = self.worker.dataflow(|scope| {
+                    let (input, stream) = scope.new_input();
+                    let arranged = upsert::arrange_from_upsert::<_, Spine<K, V>>(&stream, &"CreateInput");
+                    (input, arranged.trace)
+                });
+                self.state.inputs.insert(name.clone(), input);
+                self.state.trace.insert(name, trace);
             },
             WorkerCommand::CreateDerive {name, f} => {
                 if let Some(trace) = f(&mut self.ctx()) {

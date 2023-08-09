@@ -21,6 +21,18 @@ impl Catalog {
         }
     }
 
+    pub fn create_input_and_trace(&mut self, name: Name) -> Result<(), Error> {
+        if self.input_exists(&name) {
+            Err(Error::InputAlreadyExists(name))
+        } else if self.trace_exists(&name) {
+            Err(Error::TraceAlreadyExists(name))
+        } else {
+            self.input.insert(name.clone());
+            self.trace.insert(name);
+            Ok(())
+        }
+    }
+
     pub fn create_input(&mut self, name: Name) -> Result<(), Error> {
         if self.input_exists(&name) {
             Err(Error::InputAlreadyExists(name))

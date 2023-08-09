@@ -1,5 +1,7 @@
 use std::hash::Hash;
+use std::fmt::Debug;
 
+use abomonation::Abomonation;
 use differential_dataflow::operators::arrange::TraceAgent;
 use differential_dataflow::trace::implementations::ord::OrdValSpine;
 use timely::communication::allocator::Generic;
@@ -16,6 +18,8 @@ trait_set! {
     pub trait Data = Eq
     + PartialEq + Ord + PartialOrd + Send + Sync + Clone
     + Hash
+    + Debug
+    + Abomonation
     + 'static
     ;
 }

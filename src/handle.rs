@@ -34,10 +34,10 @@ impl<K, V> Handle<K, V>
         Handle{inner}
     }
 
-    pub async fn create_input<N: Into<Name>>(&self, name: N) -> Result<(), Error> {
+    pub async fn create_input_and_trace<N: Into<Name>>(&self, name: N) -> Result<(), Error> {
         let name = name.into();
         let (tx, rx) = oneshot::channel();
-        let cmd = CoordCommand::CreateInput {name, tx};
+        let cmd = CoordCommand::CreateInputAndTrace {name, tx};
         self.inner.cmd_tx.send(cmd).unwrap();
         rx.await.unwrap()
     }
