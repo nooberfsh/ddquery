@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use uuid::Uuid;
 
 use crate::typedef::Timestamp;
 
 pub struct TxnManager {
-    pub (crate) read_txns: HashMap<Uuid, ReadTxn>,
+    pub(crate) read_txns: HashMap<Uuid, ReadTxn>,
     // report finished read
-    pub (crate) tx: UnboundedSender<ReadTxn>,
-    pub (crate) rx: UnboundedReceiver<ReadTxn>,
+    pub(crate) tx: UnboundedSender<ReadTxn>,
+    pub(crate) rx: UnboundedReceiver<ReadTxn>,
 }
 
 #[derive(Clone)]

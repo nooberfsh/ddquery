@@ -1,5 +1,5 @@
-use std::hash::Hash;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use abomonation::Abomonation;
 use differential_dataflow::operators::arrange::TraceAgent;

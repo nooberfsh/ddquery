@@ -4,12 +4,12 @@ use std::sync::{Arc, Mutex};
 use crossbeam_channel::Receiver;
 use differential_dataflow::operators::arrange::upsert;
 use differential_dataflow::trace::{Cursor, TraceReader};
-use timely::dataflow::InputHandle;
-use timely::{PartialOrder, WorkerConfig};
 use timely::communication::WorkerGuards;
 use timely::dataflow::operators::Input;
-use timely::progress::Antichain;
+use timely::dataflow::InputHandle;
 use timely::progress::frontier::AntichainRef;
+use timely::progress::Antichain;
+use timely::{PartialOrder, WorkerConfig};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 use uuid::Uuid;
@@ -21,14 +21,21 @@ use crate::typedef::{Data, GenericWorker, Spine, Timestamp, Trace};
 
 #[derive(Clone)]
 pub enum WorkerCommand<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     CreateInputAndTrace {
         name: Name,
     },
     CreateDerive {
         name: Name,
-        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a, K, V>) -> Option<Trace<K, V>> + Send + Sync + 'static>,
+        f: Arc<
+            dyn for<'a> Fn(&mut WorkerContext<'a, K, V>) -> Option<Trace<K, V>>
+                + Send
+                + Sync
+                + 'static,
+        >,
     },
     Upsert {
         name: Name,
@@ -52,21 +59,27 @@ pub enum WorkerCommand<K, V>
 }
 
 pub struct WorkerContext<'a, K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     pub worker: &'a mut GenericWorker,
     pub state: &'a WorkerState<K, V>,
 }
 
 pub struct WorkerState<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     pub inputs: HashMap<Name, InputHandle<Timestamp, (K, Option<V>, Timestamp)>>,
     pub trace: HashMap<Name, Trace<K, V>>,
 }
 
 pub struct Worker<'a, K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     worker_id: usize,
     state: WorkerState<K, V>,
@@ -76,20 +89,23 @@ pub struct Worker<'a, K, V>
 }
 
 pub struct Config<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     pub cmd_rxs: Vec<Receiver<WorkerCommand<K, V>>>,
     pub timely_worker: WorkerConfig,
 }
 
 pub fn serve<K, V>(config: Config<K, V>) -> Result<WorkerGuards<()>, Error>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     let workers = config.cmd_rxs.len();
     assert!(workers > 0);
 
-    let command_rxs: Mutex<Vec<_>> =
-        Mutex::new(config.cmd_rxs.into_iter().map(Some).collect());
+    let command_rxs: Mutex<Vec<_>> = Mutex::new(config.cmd_rxs.into_iter().map(Some).collect());
 
     let tokio_executor = tokio::runtime::Handle::current();
     timely::execute::execute(
@@ -117,11 +133,14 @@ pub fn serve<K, V>(config: Config<K, V>) -> Result<WorkerGuards<()>, Error>
             }
             .run()
         },
-    ).map_err(Error::FailedToStartWorkers)
+    )
+    .map_err(Error::FailedToStartWorkers)
 }
 
 impl<'a, K, V> Worker<'a, K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     fn run(mut self) {
         info!("worker[{}] start to serve", self.worker_id);
@@ -172,34 +191,42 @@ impl<'a, K, V> Worker<'a, K, V>
         }
     }
 
-    fn ctx(&mut self) -> WorkerContext<'_, K ,V> {
+    fn ctx(&mut self) -> WorkerContext<'_, K, V> {
         WorkerContext {
             worker: &mut *self.worker,
-            state: &self.state
+            state: &self.state,
         }
     }
 
     fn handle_command(&mut self, cmd: WorkerCommand<K, V>) {
         match cmd {
-            WorkerCommand::CreateInputAndTrace { name} => {
+            WorkerCommand::CreateInputAndTrace { name } => {
                 let (input, trace) = self.worker.dataflow(|scope| {
                     let (input, stream) = scope.new_input();
-                    let arranged = upsert::arrange_from_upsert::<_, Spine<K, V>>(&stream, &"CreateInput");
+                    let arranged =
+                        upsert::arrange_from_upsert::<_, Spine<K, V>>(&stream, &"CreateInput");
                     (input, arranged.trace)
                 });
                 self.state.inputs.insert(name.clone(), input);
                 self.state.trace.insert(name, trace);
-            },
-            WorkerCommand::CreateDerive {name, f} => {
+            }
+            WorkerCommand::CreateDerive { name, f } => {
                 if let Some(trace) = f(&mut self.ctx()) {
                     self.state.trace.insert(name, trace);
                 }
-            },
-            WorkerCommand::Query { uuid, name, time, key, tx, token} => {
+            }
+            WorkerCommand::Query {
+                uuid,
+                name,
+                time,
+                key,
+                tx,
+                token,
+            } => {
                 let mut trace = self.state.trace.get(&name).unwrap().clone();
                 trace.set_logical_compaction(AntichainRef::new(&[time.clone()]));
                 trace.set_physical_compaction(AntichainRef::new(&[]));
-                let mut query = PendingQuery{
+                let mut query = PendingQuery {
                     uuid,
                     name,
                     time,
@@ -212,25 +239,32 @@ impl<'a, K, V> Worker<'a, K, V>
                     self.pending_queries.push(query);
                 }
             }
-            WorkerCommand::Upsert {name, time, key, value} => {
+            WorkerCommand::Upsert {
+                name,
+                time,
+                key,
+                value,
+            } => {
                 let input = self.state.inputs.get_mut(&name).unwrap();
                 input.send((key, value, time));
-            },
-            WorkerCommand::AdvanceInput {time} => {
+            }
+            WorkerCommand::AdvanceInput { time } => {
                 for input in self.state.inputs.values_mut() {
                     input.advance_to(time.clone())
                 }
-            },
+            }
             WorkerCommand::AllowCompaction(frontier) => {
                 self.allow_compaction(frontier);
-            },
+            }
             WorkerCommand::Shutdown => unreachable!(),
         }
     }
 }
 
 struct PendingQuery<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     uuid: Uuid,
     name: Name,
@@ -242,7 +276,9 @@ struct PendingQuery<K, V>
 }
 
 impl<K, V> PendingQuery<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     fn finished(&self) -> bool {
         self.tx.is_none()
@@ -252,7 +288,7 @@ impl<K, V> PendingQuery<K, V>
         let mut upper = Antichain::new();
         self.trace.read_upper(&mut upper);
         if upper.less_equal(&self.time) {
-            return false
+            return false;
         }
 
         let ret = read_key(&mut self.trace, &self.key, &self.time);
@@ -263,7 +299,9 @@ impl<K, V> PendingQuery<K, V>
 }
 
 fn read_key<K, V>(trace: &mut Trace<K, V>, key: &K, time: &Timestamp) -> Vec<V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     let mut ret = vec![];
     let (mut cursor, storage) = trace.cursor();

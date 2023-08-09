@@ -3,7 +3,7 @@ use timely::WorkerConfig;
 #[tokio::test]
 async fn smoke() {
     let config = ddquery::Config {
-        workers:4,
+        workers: 4,
         worker_config: WorkerConfig::default(),
     };
     let handle = ddquery::start(config).await.unwrap();

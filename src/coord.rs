@@ -8,7 +8,7 @@ use tracing::info;
 
 use crate::catalog::Catalog;
 use crate::error::Error;
-use crate::gid::{GIDGen};
+use crate::gid::GIDGen;
 use crate::name::Name;
 use crate::txn_manager::TxnManager;
 use crate::typedef::{Data, Timestamp, Trace};
@@ -16,7 +16,9 @@ use crate::worker::{WorkerCommand, WorkerContext};
 
 // TODO drop input/trace
 pub enum CoordCommand<K, V>
-where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     CreateInputAndTrace {
         name: Name,
@@ -24,7 +26,12 @@ where K: Data, V: Data
     },
     CreateDerive {
         name: Name,
-        f: Arc<dyn for <'a> Fn(&mut WorkerContext<'a, K ,V>) -> Option<Trace<K, V>> + Send + Sync + 'static>,
+        f: Arc<
+            dyn for<'a> Fn(&mut WorkerContext<'a, K, V>) -> Option<Trace<K, V>>
+                + Send
+                + Sync
+                + 'static,
+        >,
         tx: oneshot::Sender<Result<(), Error>>,
     },
     Upsert {
@@ -39,25 +46,29 @@ where K: Data, V: Data
         tx: UnboundedSender<Result<Vec<V>, Error>>,
     },
     // TODO: support gracefully shutdown
-    Shutdown
+    Shutdown,
 }
 
 pub struct Coord<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
-    pub (crate) epoch: Timestamp,
-    pub (crate) gid_gen: GIDGen,
-    pub (crate) catalog: Catalog,
-    pub (crate) txn_mananger: TxnManager,
-    pub (crate) cmd_rx: UnboundedReceiver<CoordCommand<K, V>>,
+    pub(crate) epoch: Timestamp,
+    pub(crate) gid_gen: GIDGen,
+    pub(crate) catalog: Catalog,
+    pub(crate) txn_mananger: TxnManager,
+    pub(crate) cmd_rx: UnboundedReceiver<CoordCommand<K, V>>,
     // worker and channel
-    pub (crate) worker_guards: WorkerGuards<()>,
-    pub (crate) worker_txs: Vec<Sender<WorkerCommand<K, V>>>,
-    pub (crate) closed: bool,
+    pub(crate) worker_guards: WorkerGuards<()>,
+    pub(crate) worker_txs: Vec<Sender<WorkerCommand<K, V>>>,
+    pub(crate) closed: bool,
 }
 
 impl<K, V> Coord<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     pub async fn run(mut self) {
         info!("coord start to serve");
@@ -163,7 +174,9 @@ impl<K, V> Coord<K, V>
 }
 
 impl<K, V> Drop for Coord<K, V>
-    where K: Data, V: Data
+where
+    K: Data,
+    V: Data,
 {
     fn drop(&mut self) {
         if !self.closed {
