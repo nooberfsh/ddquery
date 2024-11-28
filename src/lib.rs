@@ -114,7 +114,6 @@ impl<A: App> Coord<A> {
     fn advance_input(&mut self) {
         self.frontier += 1;
         let cmd = ControlCommand::AdvanceTimestamp(self.frontier);
-        let cmd = ServerCommand::ControlCommand(cmd);
         self.broadcast(cmd);
     }
 
@@ -128,9 +127,10 @@ impl<A: App> Coord<A> {
         self.worker_guards.guards()[idx].thread().unpark();
     }
 
-    fn broadcast(&self, cmd: ServerCommand<A>) {
+    fn broadcast(&self, cmd: impl Into<ServerCommand<A>> + Clone) {
         for tx in &self.worker_txs {
-            tx.send(cmd.clone()).unwrap();
+            let cmd = cmd.clone().into();
+            tx.send(cmd).unwrap();
         }
         for handle in self.worker_guards.guards() {
             handle.thread().unpark();
@@ -140,7 +140,7 @@ impl<A: App> Coord<A> {
 
 pub trait App: Clone + Sized + 'static {
     type Query: Clone + Send + 'static;
-    type Update: Clone + Send + 'static;
+    type Update: Send + 'static;
 
     fn name(&self) -> &str;
 
@@ -201,8 +201,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
         match cmd {
             ClientCommand::Query(q) => {
                 let time = coord.query_time();
-                let cmd = ServerCommand::Query(q, time);
-                coord.broadcast(cmd);
+                coord.broadcast((q, time));
             }
             ClientCommand::Update(update) => {
                 let cmd = ServerCommand::Update(update);
@@ -211,8 +210,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
                 coord.advance_input();
             }
             ClientCommand::DropApp => {
-                let cmd = ServerCommand::ControlCommand(ControlCommand::Shutdown);
-                coord.broadcast(cmd);
+                coord.broadcast(ControlCommand::Shutdown);
                 break;
             }
         }
@@ -293,14 +291,14 @@ impl<A: App> Drop for HandleInner<A> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 enum ClientCommand<A: App> {
     Query(A::Query),
     Update(A::Update),
     DropApp,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 enum ServerCommand<A: App> {
     Query(A::Query, SysTime),
     Update(A::Update),
@@ -311,4 +309,16 @@ enum ServerCommand<A: App> {
 pub enum ControlCommand {
     AdvanceTimestamp(SysTime),
     Shutdown,
+}
+
+impl<A: App> From<ControlCommand> for ServerCommand<A> {
+    fn from(value: ControlCommand) -> Self {
+        ServerCommand::ControlCommand(value)
+    }
+}
+
+impl<A: App> From<(A::Query, SysTime)> for ServerCommand<A> {
+    fn from((q, t): (A::Query, SysTime)) -> Self {
+        ServerCommand::Query(q, t)
+    }
 }
