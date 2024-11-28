@@ -3,14 +3,14 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::timely_util::dd_input::DDInputGroup;
+use crate::timely_util::trace_group::TraceGroup;
+use crate::timely_util::upsert_input::UpsertInputGroup;
 use crossbeam::channel::{Receiver, Sender};
 use timely::communication::{Allocate, WorkerGuards};
 use timely::dataflow::Scope;
 use timely::worker::Worker;
 use timely::Config;
-
-use crate::timely_util::trace_group::TraceGroup;
-use crate::timely_util::upsert_input::UpsertInputGroup;
 
 pub mod timely_util;
 
@@ -27,7 +27,8 @@ pub struct WorkerContext<'w, A: Allocate> {
     // trace
     pub trace_group: TraceGroup<SysTime>,
     // input, all input's time should be equal
-    pub input_group: UpsertInputGroup<SysTime>,
+    pub upsert_input_group: UpsertInputGroup<SysTime>,
+    pub input_group: DDInputGroup<SysTime, i64>,
     // peaks
     pub peeks: Vec<PeekTask>,
     pub frontier: SysTime,
@@ -39,7 +40,8 @@ pub struct WorkerState<'a> {
     // trace
     pub trace_group: &'a mut TraceGroup<SysTime>,
     // input, all input's time should be equal
-    pub input_group: &'a mut UpsertInputGroup<SysTime>,
+    pub upsert_input_group: &'a mut UpsertInputGroup<SysTime>,
+    pub input_group: &'a mut DDInputGroup<SysTime, i64>,
     // peaks
     pub peeks: &'a mut Vec<PeekTask>,
     pub frontier: &'a SysTime,
@@ -49,7 +51,8 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
     pub fn new(worker: &'w mut Worker<A>) -> Self {
         WorkerContext {
             trace_group: TraceGroup::new(),
-            input_group: UpsertInputGroup::new(),
+            upsert_input_group: UpsertInputGroup::new(),
+            input_group: DDInputGroup::new(),
             worker,
             peeks: vec![],
             frontier: 0,
@@ -60,6 +63,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
     fn state(&mut self) -> WorkerState<'_> {
         WorkerState {
             trace_group: &mut self.trace_group,
+            upsert_input_group: &mut self.upsert_input_group,
             input_group: &mut self.input_group,
             peeks: &mut self.peeks,
             frontier: &self.frontier,
@@ -70,6 +74,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
         let worker = &mut *self.worker;
         let state = WorkerState {
             trace_group: &mut self.trace_group,
+            upsert_input_group: &mut self.upsert_input_group,
             input_group: &mut self.input_group,
             peeks: &mut self.peeks,
             frontier: &self.frontier,
@@ -95,7 +100,8 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
                 assert_eq!(self.frontier + 1, time);
                 let prev_time = self.frontier;
                 self.frontier = time;
-                self.input_group.advance_to(self.frontier);
+                self.upsert_input_group.advance_to(self.frontier);
+                self.input_group.advance_and_flush(self.frontier);
                 self.trace_group.logical_compaction(prev_time);
             }
             ControlCommand::Shutdown => self.shutdown = true,

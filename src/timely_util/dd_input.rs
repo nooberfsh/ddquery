@@ -32,14 +32,6 @@ where
         }
     }
 
-    pub fn alloc<D>(&mut self)
-    where
-        D: Clone + Ord + Debug + 'static,
-    {
-        let input: InputSession<T, D, R> = InputSession::new();
-        self.register(input);
-    }
-
     pub fn register<D>(&mut self, handle: InputSession<T, D, R>)
     where
         D: Clone + Ord + Debug + 'static,
@@ -97,13 +89,15 @@ where
         handle.update_at(value, time, change);
     }
 
-    pub fn get_collection<D, G>(&mut self, scope: &mut G) -> Option<Collection<G, D, R>>
+    pub fn alloc_collection<D, G>(&mut self, scope: &mut G) -> Collection<G, D, R>
     where
         G: TimelyInput<Timestamp = T>,
         D: Clone + Ord + Debug + 'static,
     {
-        let handle = self.get_mut::<D>()?;
-        Some(handle.to_collection(scope))
+        let input: InputSession<T, D, R> = InputSession::new();
+        self.register(input);
+        let handle = self.get_mut::<D>().unwrap();
+        handle.to_collection(scope)
     }
 
     pub fn advance_and_flush(&mut self, frontier: T) {
