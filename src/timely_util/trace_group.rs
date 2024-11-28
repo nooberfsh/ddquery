@@ -78,13 +78,13 @@ where
     }
 
     pub fn physical_compaction(&mut self) {
-        for (_, bundle) in &mut self.traces {
+        for bundle in self.traces.values_mut() {
             (bundle.physical_compaction_fn)(&mut bundle.trace)
         }
     }
 
     pub fn logical_compaction(&mut self, frontier: T) {
-        for (_, bundle) in &mut self.traces {
+        for bundle in self.traces.values_mut() {
             (bundle.logical_compaction_fn)(&mut bundle.trace, frontier.clone())
         }
     }

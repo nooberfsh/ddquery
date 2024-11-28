@@ -107,7 +107,7 @@ where
     }
 
     pub fn advance_and_flush(&mut self, frontier: T) {
-        for (_, bundle) in &mut self.inputs {
+        for bundle in self.inputs.values_mut() {
             (bundle.advance_fn)(&mut bundle.handle, frontier.clone());
             (bundle.flush_fn)(&mut bundle.handle)
         }

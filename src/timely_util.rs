@@ -13,5 +13,5 @@ where
 {
     let mut frontier = Antichain::new();
     tr.read_upper(&mut frontier);
-    !frontier.less_equal(&t)
+    !frontier.less_equal(t)
 }

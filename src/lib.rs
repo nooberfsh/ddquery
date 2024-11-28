@@ -1,3 +1,6 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::new_without_default)]
+
 use std::sync::{Arc, Mutex};
 
 use crossbeam::channel::{Receiver, Sender};

@@ -37,10 +37,10 @@ where
         }
     }
 
-    pub fn register<U: UpsertInput>(&mut self, handle: InputHandle<T, (U::Key, Option<U>, T)>)
+    pub fn register<U>(&mut self, handle: InputHandle<T, (U::Key, Option<U>, T)>)
     where
         U::Key: Clone + 'static,
-        U: Clone + 'static,
+        U: UpsertInput + Clone + 'static,
     {
         let tid = TypeId::of::<U>();
         let handle = Box::new(handle);
@@ -53,30 +53,30 @@ where
         assert!(d.is_none(), "register same InputHandle");
     }
 
-    pub fn get<U: UpsertInput>(&self) -> Option<&InputHandle<T, (U::Key, Option<U>, T)>>
+    pub fn get<U>(&self) -> Option<&InputHandle<T, (U::Key, Option<U>, T)>>
     where
         U::Key: Clone + 'static,
-        U: Clone + 'static,
+        U: UpsertInput + Clone + 'static,
     {
         let tid = TypeId::of::<U>();
         let bundle = self.inputs.get(&tid)?;
         Some(bundle.handle.downcast_ref().unwrap())
     }
 
-    pub fn get_mut<U: UpsertInput>(&mut self) -> Option<&mut InputHandle<T, (U::Key, Option<U>, T)>>
+    pub fn get_mut<U>(&mut self) -> Option<&mut InputHandle<T, (U::Key, Option<U>, T)>>
     where
         U::Key: Clone + 'static,
-        U: Clone + 'static,
+        U: UpsertInput + Clone + 'static,
     {
         let tid = TypeId::of::<U>();
         let bundle = self.inputs.get_mut(&tid)?;
         Some(bundle.handle.downcast_mut().unwrap())
     }
 
-    pub fn upsert<U: UpsertInput>(&mut self, value: U)
+    pub fn upsert<U>(&mut self, value: U)
     where
         U::Key: Clone + 'static,
-        U: Clone + 'static,
+        U: UpsertInput + Clone + 'static,
     {
         let key = value.get_key();
         let handle = self.get_mut::<U>().expect("not registered");
@@ -84,7 +84,7 @@ where
         handle.send((key, Some(value), time.clone()));
     }
 
-    fn get_arrange_named<U: UpsertInput, Tr, G>(
+    fn get_arrange_named<U, Tr, G>(
         &mut self,
         scope: &mut G,
         name: &str,
@@ -94,7 +94,7 @@ where
         Tr: Trace + TraceReader<Time = T, Diff = isize> + 'static,
         for<'a> Tr::Key<'a>: IntoOwned<'a, Owned = U::Key>,
         U::Key: ExchangeData + Hashable + std::hash::Hash,
-        U: ExchangeData,
+        U: UpsertInput + ExchangeData,
         for<'a> Tr::Val<'a>: IntoOwned<'a, Owned = U>,
         T: TotalOrder + ExchangeData + Lattice,
         Tr::Batch: Batch,
@@ -107,11 +107,11 @@ where
         ))
     }
 
-    pub fn alloc_collection<U: UpsertInput, G>(&mut self, scope: &mut G) -> Collection<G, U>
+    pub fn alloc_collection<U, G>(&mut self, scope: &mut G) -> Collection<G, U>
     where
         G: Scope<Timestamp = T>,
         U::Key: ExchangeData + Hashable + std::hash::Hash,
-        U: ExchangeData,
+        U: UpsertInput + ExchangeData,
         T: TotalOrder + ExchangeData + Lattice,
     {
         let input: InputHandle<T, (U::Key, Option<U>, T)> = InputHandle::new();
@@ -119,11 +119,11 @@ where
         self.get_collection(scope).unwrap()
     }
 
-    fn get_collection<U: UpsertInput, G>(&mut self, scope: &mut G) -> Option<Collection<G, U>>
+    fn get_collection<U, G>(&mut self, scope: &mut G) -> Option<Collection<G, U>>
     where
         G: Scope<Timestamp = T>,
         U::Key: ExchangeData + Hashable + std::hash::Hash,
-        U: ExchangeData,
+        U: UpsertInput + ExchangeData,
         T: TotalOrder + ExchangeData + Lattice,
     {
         let arranged = self
@@ -131,10 +131,10 @@ where
         Some(arranged.as_collection(|_k, v| v.clone()))
     }
 
-    pub fn delete<U: UpsertInput>(&mut self, key: U::Key)
+    pub fn delete<U>(&mut self, key: U::Key)
     where
         U::Key: Clone + 'static,
-        U: Clone + 'static,
+        U: UpsertInput + Clone + 'static,
     {
         let handle = self.get_mut::<U>().expect("not registered");
         let time = handle.time();
@@ -142,7 +142,7 @@ where
     }
 
     pub fn advance_to(&mut self, frontier: T) {
-        for (_, bundle) in &mut self.inputs {
+        for bundle in self.inputs.values_mut() {
             (bundle.advance_fn)(&mut bundle.handle, frontier.clone());
         }
     }
