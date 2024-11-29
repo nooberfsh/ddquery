@@ -41,6 +41,8 @@ where
                 count += diff.into_owned();
             }
         });
+
+        #[allow(clippy::comparison_chain)]
         if count < 0 {
             panic!("key: `{:?}` count < 0", key);
         } else if count == 0 {

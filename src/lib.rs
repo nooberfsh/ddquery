@@ -115,7 +115,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
                 let mut trace_info = Vec::with_capacity(trace_bundle_info.len());
                 for bundle in trace_bundle_info {
                     let info = SysInternalTrace {
-                        name: bundle.name.to_string(),
+                        name: bundle.name,
                         logical_compaction: bundle
                             .logical_compaction
                             .into_option()

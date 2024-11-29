@@ -6,20 +6,20 @@ use timely::progress::{Antichain, Timestamp};
 
 struct Bundle<T> {
     trace: Box<dyn Any>,
-    name: &'static str,
+    name: String,
     physical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>)>,
     logical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
     get_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>) -> (Antichain<T>, Antichain<T>)>,
 }
 
 pub(crate) struct BundleInfo<T> {
-    pub(crate) name: &'static str,
+    pub(crate) name: String,
     pub(crate) physical_compaction: Antichain<T>,
     pub(crate) logical_compaction: Antichain<T>,
 }
 
 impl<T: Clone> Bundle<T> {
-    fn new<Tr>(trace: Tr, name: &'static str) -> Self
+    fn new<Tr>(trace: Tr, name: String) -> Self
     where
         Tr: TraceReader<Time = T> + 'static,
     {
@@ -70,7 +70,13 @@ where
         Tr: TraceReader<Time = T> + 'static,
     {
         let tid = TypeId::of::<Tr>();
-        let name = type_name::<Tr>();
+        let name = {
+            let key_name = type_name::<Tr::Key<'_>>();
+            let value_name = type_name::<Tr::Val<'_>>();
+            let time_name = type_name::<Tr::Time>();
+            let diff_name = type_name::<Tr::Diff>();
+            format!("Trace[{key_name},{value_name},{time_name},{diff_name}]")
+        };
 
         let bundle = Bundle::new::<Tr>(trace, name);
         let d = self.traces.insert(tid, bundle);
@@ -112,7 +118,7 @@ where
         for bundle in self.traces.values_mut() {
             let (logical, physical) = (bundle.get_compaction_fn)(&mut bundle.trace);
             ret.push(BundleInfo {
-                name: bundle.name,
+                name: bundle.name.clone(),
                 logical_compaction: logical,
                 physical_compaction: physical,
             });
