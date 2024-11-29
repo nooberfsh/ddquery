@@ -3,18 +3,20 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::timely_util::dd_input::DDInputGroup;
-use crate::timely_util::trace_group::TraceGroup;
-use crate::timely_util::upsert_input::UpsertInputGroup;
 use crossbeam::channel::{Receiver, Sender};
 use timely::communication::{Allocate, WorkerGuards};
 use timely::dataflow::Scope;
 use timely::worker::Worker;
 use timely::Config;
 
+use crate::timely_util::dd_input::DDInputGroup;
+use crate::timely_util::trace_group::TraceGroup;
+use crate::timely_util::upsert_input::UpsertInputGroup;
+
 pub mod timely_util;
 
 pub type SysTime = u64;
+pub type SysDiff = i64;
 
 pub enum PeekResult {
     NotReady,
@@ -28,7 +30,7 @@ pub struct WorkerContext<'w, A: Allocate> {
     pub trace_group: TraceGroup<SysTime>,
     // input, all input's time should be equal
     pub upsert_input_group: UpsertInputGroup<SysTime>,
-    pub input_group: DDInputGroup<SysTime, i64>,
+    pub input_group: DDInputGroup<SysTime, SysDiff>,
     // peaks
     pub peeks: Vec<PeekTask>,
     pub frontier: SysTime,
@@ -41,7 +43,7 @@ pub struct WorkerState<'a> {
     pub trace_group: &'a mut TraceGroup<SysTime>,
     // input, all input's time should be equal
     pub upsert_input_group: &'a mut UpsertInputGroup<SysTime>,
-    pub input_group: &'a mut DDInputGroup<SysTime, i64>,
+    pub input_group: &'a mut DDInputGroup<SysTime, SysDiff>,
     // peaks
     pub peeks: &'a mut Vec<PeekTask>,
     pub frontier: &'a SysTime,

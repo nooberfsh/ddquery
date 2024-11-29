@@ -73,6 +73,17 @@ where
         Some(bundle.handle.downcast_mut().unwrap())
     }
 
+    pub fn insert_batch<D>(&mut self, batch: impl IntoIterator<Item = D>)
+    where
+        D: Clone + Ord + Debug + 'static,
+        R: From<u8>,
+    {
+        let handle = self.get_mut::<D>().expect("not registered");
+        for d in batch {
+            handle.update(d, 1.into());
+        }
+    }
+
     pub fn update<D>(&mut self, value: D, change: R)
     where
         D: Clone + Ord + Debug + 'static,
