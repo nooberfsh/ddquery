@@ -66,7 +66,7 @@ where
     let t_parse = timer.elapsed();
 
     println!(
-        "load finish, read_file: {:?}, collect_lines: {:?}, parse: {:?}, total: {:?}, count: {}",
+        "load {name} finish, read_file: {:?}, collect_lines: {:?}, parse: {:?}, total: {:?}, count: {}",
         t_read_file,
         t_collect_lines - t_read_file,
         t_parse - t_collect_lines,
