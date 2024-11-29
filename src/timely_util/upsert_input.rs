@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::HashMap;
 
 use differential_dataflow::lattice::Lattice;
@@ -19,6 +19,7 @@ pub trait UpsertInput {
 }
 
 struct Bundle<T> {
+    name: &'static str,
     handle: Box<dyn Any>,
     advance_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
 }
@@ -43,12 +44,17 @@ where
         U: UpsertInput + Clone + 'static,
     {
         let tid = TypeId::of::<U>();
+        let name = type_name::<U>();
         let handle = Box::new(handle);
         let advance_fn = Box::new(|any: &mut Box<dyn Any>, t: T| {
             let handle: &mut InputHandle<T, (U::Key, Option<U>, T)> = any.downcast_mut().unwrap();
             handle.advance_to(t);
         });
-        let bundle = Bundle { handle, advance_fn };
+        let bundle = Bundle {
+            name,
+            handle,
+            advance_fn,
+        };
         let d = self.inputs.insert(tid, bundle);
         assert!(d.is_none(), "register same InputHandle");
     }

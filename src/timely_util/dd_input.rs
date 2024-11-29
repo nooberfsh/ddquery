@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -11,6 +11,7 @@ use timely::progress::Timestamp;
 
 struct Bundle<T> {
     handle: Box<dyn Any>,
+    name: &'static str,
     advance_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
     flush_fn: Box<dyn Fn(&mut Box<dyn Any>)>,
 }
@@ -37,6 +38,8 @@ where
         D: Clone + Ord + Debug + 'static,
     {
         let tid = TypeId::of::<D>();
+        let name = type_name::<D>();
+
         let handle = Box::new(handle);
         let advance_fn = Box::new(|any: &mut Box<dyn Any>, t: T| {
             let handle: &mut InputSession<T, D, R> = any.downcast_mut().unwrap();
@@ -48,6 +51,7 @@ where
         });
         let bundle = Bundle {
             handle,
+            name,
             advance_fn,
             flush_fn,
         };

@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::HashMap;
 
 use differential_dataflow::trace::TraceReader;
@@ -6,12 +6,13 @@ use timely::progress::{Antichain, Timestamp};
 
 struct Bundle<T> {
     trace: Box<dyn Any>,
+    name: &'static str,
     physical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>)>,
     logical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
 }
 
 impl<T> Bundle<T> {
-    fn new<Tr>(trace: Tr) -> Self
+    fn new<Tr>(trace: Tr, name: &'static str) -> Self
     where
         Tr: TraceReader<Time = T> + 'static,
     {
@@ -29,6 +30,7 @@ impl<T> Bundle<T> {
         });
         Bundle {
             trace,
+            name,
             physical_compaction_fn,
             logical_compaction_fn,
         }
@@ -54,7 +56,9 @@ where
         Tr: TraceReader<Time = T> + 'static,
     {
         let tid = TypeId::of::<Tr>();
-        let bundle = Bundle::new(trace);
+        let name = type_name::<Tr>();
+
+        let bundle = Bundle::new::<Tr>(trace, name);
         let d = self.traces.insert(tid, bundle);
         assert!(d.is_none(), "register same trace")
     }
