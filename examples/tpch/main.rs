@@ -14,7 +14,7 @@ mod util;
 
 pub type AnswerTrace<T> = TraceAgent<OrdKeySpine<T, SysTime, SysDiff>>;
 
-const DEFAULT_WORKER_THREADS: usize = 8;
+const DEFAULT_WORKER_THREADS: usize = 4;
 const DEFAULT_BATCH_SIZE: usize = 1000;
 
 fn main() {
@@ -26,8 +26,9 @@ fn q01() {
 
     let path = "dataset";
     let name = "lineitem.tbl";
-    let expected = load_output::<Q01Answer>("dataset/answers", "q1.out").unwrap();
+    let expected = load_output::<Q01Answer>("examples/tpch/answers", "q1.out").unwrap();
     let data = load_input::<LineItem>(path, name, DEFAULT_BATCH_SIZE).unwrap();
+    let batches = data.len();
 
     let start = Instant::now();
     for batch in data {
@@ -36,5 +37,11 @@ fn q01() {
     let res = Q01::results(&handle);
     assert_eq!(res, expected);
 
-    println!("compute: {:?}", start.elapsed());
+    println!(
+        "compute finish, time: {:?}: batches: {batches}",
+        start.elapsed()
+    );
+
+    let internal = handle.collect_internal_data();
+    println!("internal: {:#?}", internal);
 }
