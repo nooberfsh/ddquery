@@ -1,5 +1,5 @@
 use std::any::{type_name, Any, TypeId};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -14,10 +14,16 @@ struct Bundle<T> {
     name: &'static str,
     advance_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
     flush_fn: Box<dyn Fn(&mut Box<dyn Any>)>,
+    get_time_fn: Box<dyn Fn(&mut Box<dyn Any>) -> T>,
+}
+
+pub(crate) struct BundleInfo<T> {
+    pub(crate) name: &'static str,
+    pub(crate) time: T,
 }
 
 pub struct DDInputGroup<T, R> {
-    inputs: HashMap<TypeId, Bundle<T>>,
+    inputs: BTreeMap<TypeId, Bundle<T>>,
     _marker: PhantomData<R>,
 }
 
@@ -28,7 +34,7 @@ where
 {
     pub fn new() -> Self {
         DDInputGroup {
-            inputs: HashMap::new(),
+            inputs: BTreeMap::new(),
             _marker: PhantomData,
         }
     }
@@ -49,11 +55,16 @@ where
             let handle: &mut InputSession<T, D, R> = any.downcast_mut().unwrap();
             handle.flush();
         });
+        let get_time_fn = Box::new(move |any: &mut Box<dyn Any>| {
+            let handle: &mut InputSession<T, D, R> = any.downcast_mut().unwrap();
+            handle.time().clone()
+        });
         let bundle = Bundle {
             handle,
             name,
             advance_fn,
             flush_fn,
+            get_time_fn,
         };
         let d = self.inputs.insert(tid, bundle);
         assert!(d.is_none(), "register same InputSession");
@@ -120,5 +131,17 @@ where
             (bundle.advance_fn)(&mut bundle.handle, frontier.clone());
             (bundle.flush_fn)(&mut bundle.handle)
         }
+    }
+
+    pub(crate) fn collect_info(&mut self) -> Vec<BundleInfo<T>> {
+        let mut ret = vec![];
+        for bundle in self.inputs.values_mut() {
+            let time = (bundle.get_time_fn)(&mut bundle.handle);
+            ret.push(BundleInfo {
+                name: bundle.name,
+                time,
+            });
+        }
+        ret
     }
 }

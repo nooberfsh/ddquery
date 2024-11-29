@@ -9,10 +9,14 @@ use timely::dataflow::Scope;
 use timely::worker::Worker;
 use timely::Config;
 
+use crate::internal::{
+    SysInternal, SysInternalCoord, SysInternalInput, SysInternalTrace, SysInternalWorker,
+};
 use crate::timely_util::dd_input::DDInputGroup;
 use crate::timely_util::trace_group::TraceGroup;
 use crate::timely_util::upsert_input::UpsertInputGroup;
 
+pub mod internal;
 pub mod timely_util;
 
 pub type SysTime = u64;
@@ -105,6 +109,52 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
                 self.upsert_input_group.advance_to(self.frontier);
                 self.input_group.advance_and_flush(self.frontier);
                 self.trace_group.logical_compaction(prev_time);
+            }
+            ControlCommand::CollectInternal(tx) => {
+                let trace_bundle_info = self.trace_group.collect_info();
+                let mut trace_info = Vec::with_capacity(trace_bundle_info.len());
+                for bundle in trace_bundle_info {
+                    let info = SysInternalTrace {
+                        name: bundle.name.to_string(),
+                        logical_compaction: bundle
+                            .logical_compaction
+                            .into_option()
+                            .expect("trace should not be closed"),
+                        physical_compaction: bundle
+                            .physical_compaction
+                            .into_option()
+                            .expect("physical compaction should not be empty"),
+                    };
+                    trace_info.push(info);
+                }
+                let upsert_input_bundle_info = self.upsert_input_group.collect_info();
+                let mut upsert_input_info = Vec::with_capacity(upsert_input_bundle_info.len());
+                for bundle in upsert_input_bundle_info {
+                    let info = SysInternalInput {
+                        name: bundle.name.to_string(),
+                        time: bundle.time,
+                    };
+                    upsert_input_info.push(info);
+                }
+
+                let input_bundle_info = self.input_group.collect_info();
+                let mut input_info = Vec::with_capacity(input_bundle_info.len());
+                for bundle in input_bundle_info {
+                    let info = SysInternalInput {
+                        name: bundle.name.to_string(),
+                        time: bundle.time,
+                    };
+                    input_info.push(info);
+                }
+
+                let worker_info = SysInternalWorker {
+                    index: self.worker.index(),
+                    frontier: self.frontier,
+                    upsert_input_info,
+                    input_info,
+                    trace_info,
+                };
+                let _ = tx.send(worker_info);
             }
             ControlCommand::Shutdown => self.shutdown = true,
         }
@@ -217,6 +267,25 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
                 coord.send(0, cmd);
                 coord.advance_input();
             }
+            ClientCommand::CollectInternal(sender) => {
+                let (tx, rx) = crossbeam::channel::unbounded();
+                let cmd = ControlCommand::CollectInternal(tx);
+                coord.broadcast(cmd);
+                let mut worker_data = Vec::with_capacity(coord._workers);
+                while let Ok(d) = rx.recv() {
+                    worker_data.push(d);
+                }
+                worker_data.sort_by_key(|d| d.index);
+                let coord_data = SysInternalCoord {
+                    workers: coord._workers,
+                    frontier: coord.frontier,
+                };
+                let ret = SysInternal {
+                    coord: coord_data,
+                    workers: worker_data,
+                };
+                let _ = sender.send(ret);
+            }
             ClientCommand::DropApp => {
                 coord.broadcast(ControlCommand::Shutdown);
                 break;
@@ -286,6 +355,13 @@ impl<A: App> Handle<A> {
         let cmd = ClientCommand::Update(update);
         self.inner.tx.send(cmd).unwrap();
     }
+
+    pub fn collect_internal_data(&self) -> SysInternal {
+        let (tx, rx) = crossbeam::channel::unbounded();
+        let cmd = ClientCommand::CollectInternal(tx);
+        self.inner.tx.send(cmd).unwrap();
+        rx.recv().unwrap()
+    }
 }
 
 struct HandleInner<A: App> {
@@ -303,6 +379,7 @@ impl<A: App> Drop for HandleInner<A> {
 enum ClientCommand<A: App> {
     Query(A::Query),
     Update(A::Update),
+    CollectInternal(Sender<SysInternal>),
     DropApp,
 }
 
@@ -316,6 +393,7 @@ enum ServerCommand<A: App> {
 #[derive(Clone, Debug)]
 pub enum ControlCommand {
     AdvanceTimestamp(SysTime),
+    CollectInternal(Sender<SysInternalWorker>),
     Shutdown,
 }
 

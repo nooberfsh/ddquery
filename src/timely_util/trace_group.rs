@@ -1,5 +1,5 @@
 use std::any::{type_name, Any, TypeId};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use differential_dataflow::trace::TraceReader;
 use timely::progress::{Antichain, Timestamp};
@@ -9,9 +9,16 @@ struct Bundle<T> {
     name: &'static str,
     physical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>)>,
     logical_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
+    get_compaction_fn: Box<dyn Fn(&mut Box<dyn Any>) -> (Antichain<T>, Antichain<T>)>,
 }
 
-impl<T> Bundle<T> {
+pub(crate) struct BundleInfo<T> {
+    pub(crate) name: &'static str,
+    pub(crate) physical_compaction: Antichain<T>,
+    pub(crate) logical_compaction: Antichain<T>,
+}
+
+impl<T: Clone> Bundle<T> {
     fn new<Tr>(trace: Tr, name: &'static str) -> Self
     where
         Tr: TraceReader<Time = T> + 'static,
@@ -28,17 +35,24 @@ impl<T> Bundle<T> {
             let upper = Antichain::from_elem(frontier);
             trace.set_logical_compaction(upper.borrow())
         });
+        let get_compaction_fn = Box::new(|any: &mut Box<dyn Any>| {
+            let trace: &mut Tr = any.downcast_mut().unwrap();
+            let logical = trace.get_logical_compaction().to_owned();
+            let physical = trace.get_physical_compaction().to_owned();
+            (logical, physical)
+        });
         Bundle {
             trace,
             name,
             physical_compaction_fn,
             logical_compaction_fn,
+            get_compaction_fn,
         }
     }
 }
 
 pub struct TraceGroup<T> {
-    traces: HashMap<TypeId, Bundle<T>>,
+    traces: BTreeMap<TypeId, Bundle<T>>,
 }
 
 impl<T> TraceGroup<T>
@@ -47,7 +61,7 @@ where
 {
     pub fn new() -> Self {
         TraceGroup {
-            traces: HashMap::new(),
+            traces: BTreeMap::new(),
         }
     }
 
@@ -91,5 +105,18 @@ where
         for bundle in self.traces.values_mut() {
             (bundle.logical_compaction_fn)(&mut bundle.trace, frontier.clone())
         }
+    }
+
+    pub(crate) fn collect_info(&mut self) -> Vec<BundleInfo<T>> {
+        let mut ret = vec![];
+        for bundle in self.traces.values_mut() {
+            let (logical, physical) = (bundle.get_compaction_fn)(&mut bundle.trace);
+            ret.push(BundleInfo {
+                name: bundle.name,
+                logical_compaction: logical,
+                physical_compaction: physical,
+            });
+        }
+        ret
     }
 }

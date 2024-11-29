@@ -1,5 +1,5 @@
 use std::any::{type_name, Any, TypeId};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use differential_dataflow::lattice::Lattice;
 use differential_dataflow::operators::arrange::{upsert, Arranged, TraceAgent};
@@ -22,10 +22,16 @@ struct Bundle<T> {
     name: &'static str,
     handle: Box<dyn Any>,
     advance_fn: Box<dyn Fn(&mut Box<dyn Any>, T)>,
+    get_time_fn: Box<dyn Fn(&mut Box<dyn Any>) -> T>,
+}
+
+pub(crate) struct BundleInfo<T> {
+    pub(crate) name: &'static str,
+    pub(crate) time: T,
 }
 
 pub struct UpsertInputGroup<T> {
-    inputs: HashMap<TypeId, Bundle<T>>,
+    inputs: BTreeMap<TypeId, Bundle<T>>,
 }
 
 impl<T> UpsertInputGroup<T>
@@ -34,7 +40,7 @@ where
 {
     pub fn new() -> Self {
         UpsertInputGroup {
-            inputs: HashMap::new(),
+            inputs: BTreeMap::new(),
         }
     }
 
@@ -50,10 +56,15 @@ where
             let handle: &mut InputHandle<T, (U::Key, Option<U>, T)> = any.downcast_mut().unwrap();
             handle.advance_to(t);
         });
+        let get_time_fn = Box::new(|any: &mut Box<dyn Any>| {
+            let handle: &mut InputHandle<T, (U::Key, Option<U>, T)> = any.downcast_mut().unwrap();
+            handle.time().clone()
+        });
         let bundle = Bundle {
             name,
             handle,
             advance_fn,
+            get_time_fn,
         };
         let d = self.inputs.insert(tid, bundle);
         assert!(d.is_none(), "register same InputHandle");
@@ -151,5 +162,17 @@ where
         for bundle in self.inputs.values_mut() {
             (bundle.advance_fn)(&mut bundle.handle, frontier.clone());
         }
+    }
+
+    pub(crate) fn collect_info(&mut self) -> Vec<BundleInfo<T>> {
+        let mut ret = vec![];
+        for bundle in self.inputs.values_mut() {
+            let time = (bundle.get_time_fn)(&mut bundle.handle);
+            ret.push(BundleInfo {
+                name: bundle.name,
+                time,
+            });
+        }
+        ret
     }
 }
