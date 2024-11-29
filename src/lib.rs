@@ -162,7 +162,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
 }
 
 pub struct Coord<A: App> {
-    _workers: usize,
+    workers: usize,
     frontier: SysTime,
     worker_guards: WorkerGuards<()>,
     worker_txs: Vec<Sender<ServerCommand<A>>>,
@@ -242,7 +242,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
     let worker_guards = run_timely_workers::<A>(td_config, worker_rxs);
 
     let mut coord = Coord {
-        _workers: workers,
+        workers,
         frontier: 0,
         worker_guards,
         worker_txs,
@@ -271,13 +271,13 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
                 let (tx, rx) = crossbeam::channel::unbounded();
                 let cmd = ControlCommand::CollectInternal(tx);
                 coord.broadcast(cmd);
-                let mut worker_data = Vec::with_capacity(coord._workers);
+                let mut worker_data = Vec::with_capacity(coord.workers);
                 while let Ok(d) = rx.recv() {
                     worker_data.push(d);
                 }
                 worker_data.sort_by_key(|d| d.index);
                 let coord_data = SysInternalCoord {
-                    workers: coord._workers,
+                    workers: coord.workers,
                     frontier: coord.frontier,
                 };
                 let ret = SysInternal {
