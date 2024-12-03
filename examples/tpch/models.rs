@@ -383,3 +383,21 @@ impl FromStr for Q04Answer {
         Ok(ret)
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Q05Answer {
+    pub n_name: String,
+    pub revenue: Decimal,
+}
+
+impl FromStr for Q05Answer {
+    type Err = Error;
+    fn from_str(line: &str) -> std::result::Result<Self, Self::Err> {
+        let mut fields = line.split('|');
+        let ret = Q05Answer {
+            n_name: parse_field_trim(&mut fields)?,
+            revenue: parse_field_trim(&mut fields)?,
+        };
+        Ok(ret)
+    }
+}
