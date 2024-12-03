@@ -365,3 +365,21 @@ impl FromStr for Q03Answer {
         Ok(ret)
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Q04Answer {
+    pub o_orderpriority: String,
+    pub order_count: i64,
+}
+
+impl FromStr for Q04Answer {
+    type Err = Error;
+    fn from_str(line: &str) -> std::result::Result<Self, Self::Err> {
+        let mut fields = line.split('|');
+        let ret = Q04Answer {
+            o_orderpriority: parse_field_trim(&mut fields)?,
+            order_count: parse_field_trim(&mut fields)?,
+        };
+        Ok(ret)
+    }
+}

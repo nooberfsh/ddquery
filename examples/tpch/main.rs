@@ -8,6 +8,7 @@ use crate::models::*;
 use crate::query::q01::Q01;
 use crate::query::q02::Q02;
 use crate::query::q03::Q03;
+use crate::query::q04::Q04;
 use crate::util::{load_input, load_output};
 
 mod macros;
@@ -24,6 +25,7 @@ fn main() {
     q01();
     q02();
     q03();
+    q04();
 }
 
 fn q01() {
@@ -81,6 +83,23 @@ fn q03() {
 
     let start = Instant::now();
     let res = Q03::results(&handle);
+    assert_eq!(res, expected);
+
+    println!(
+        "compute finish, time: {:?}: batches: {batches}",
+        start.elapsed()
+    );
+}
+
+fn q04() {
+    let handle = Q04.start(DEFAULT_WORKER_THREADS);
+
+    let path = "dataset";
+    let expected = load_output::<Q04Answer>("examples/tpch/answers", "q4.out").unwrap();
+    let batches = load_inputs!(handle, path, DEFAULT_BATCH_SIZE, Order, LineItem);
+
+    let start = Instant::now();
+    let res = Q04::results(&handle);
     assert_eq!(res, expected);
 
     println!(

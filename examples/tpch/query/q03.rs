@@ -73,9 +73,7 @@ impl App for Q03 {
             .map(|x| (x.order_key, x));
 
         let arranged = customer
-            .join_map(&orders, |_, customer, order| {
-                (order.order_key, order.clone())
-            })
+            .join_map(&orders, |_, _, order| (order.order_key, order.clone()))
             .join_map(&lineitem, move |_, order, line_item| {
                 (
                     (line_item.order_key, order.order_date, order.ship_priority),
