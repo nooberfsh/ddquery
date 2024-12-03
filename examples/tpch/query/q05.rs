@@ -93,7 +93,7 @@ impl App for Q05 {
             .join_map(&orders, |_, customer, order| {
                 (order.order_key, (customer.clone(), order.clone()))
             })
-            .join_map(&lineitem, move |_, (customer, order), line_item| {
+            .join_map(&lineitem, move |_, (customer, _), line_item| {
                 (
                     (line_item.supp_key, customer.nation_key),
                     line_item.extended_price * (one - line_item.discount),

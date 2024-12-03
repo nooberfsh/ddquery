@@ -10,7 +10,7 @@ use crate::query::q02::Q02;
 use crate::query::q03::Q03;
 use crate::query::q04::Q04;
 use crate::query::q05::Q05;
-use crate::util::{load_input, load_output};
+use crate::util::load_output;
 
 mod macros;
 mod models;
@@ -23,10 +23,10 @@ const DEFAULT_WORKER_THREADS: usize = 4;
 const DEFAULT_BATCH_SIZE: usize = 1000;
 
 fn main() {
-    // q01();
-    // q02();
-    // q03();
-    // q04();
+    q01();
+    q02();
+    q03();
+    q04();
     q05();
 }
 
@@ -35,7 +35,7 @@ fn q01() {
 
     let path = "dataset";
     let expected = load_output::<Q01Answer>("examples/tpch/answers", "q1.out").unwrap();
-    let batches = load_inputs!(handle, path, DEFAULT_BATCH_SIZE, LineItem);
+    let batches = <Q01 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
 
     let start = Instant::now();
     let res = Q01::results(&handle);
@@ -55,16 +55,7 @@ fn q02() {
 
     let path = "dataset";
     let expected = load_output::<Q02Answer>("examples/tpch/answers", "q2.out").unwrap();
-    let batches = load_inputs!(
-        handle,
-        path,
-        DEFAULT_BATCH_SIZE,
-        Part,
-        Supplier,
-        PartSupp,
-        Nation,
-        Region
-    );
+    let batches = <Q02 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
 
     let start = Instant::now();
     let res = Q02::results(&handle);
@@ -81,7 +72,7 @@ fn q03() {
 
     let path = "dataset";
     let expected = load_output::<Q03Answer>("examples/tpch/answers", "q3.out").unwrap();
-    let batches = load_inputs!(handle, path, DEFAULT_BATCH_SIZE, Customer, Order, LineItem);
+    let batches = <Q03 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
 
     let start = Instant::now();
     let res = Q03::results(&handle);
@@ -98,7 +89,7 @@ fn q04() {
 
     let path = "dataset";
     let expected = load_output::<Q04Answer>("examples/tpch/answers", "q4.out").unwrap();
-    let batches = load_inputs!(handle, path, DEFAULT_BATCH_SIZE, Order, LineItem);
+    let batches = <Q04 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
 
     let start = Instant::now();
     let res = Q04::results(&handle);
@@ -115,17 +106,7 @@ fn q05() {
 
     let path = "dataset";
     let expected = load_output::<Q05Answer>("examples/tpch/answers", "q5.out").unwrap();
-    let batches = load_inputs!(
-        handle,
-        path,
-        DEFAULT_BATCH_SIZE,
-        Customer,
-        Order,
-        LineItem,
-        Supplier,
-        Nation,
-        Region
-    );
+    let batches = <Q05 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
 
     let start = Instant::now();
     let res = Q05::results(&handle);

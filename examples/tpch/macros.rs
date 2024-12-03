@@ -19,24 +19,19 @@ macro_rules! gen_update {
                     $(Update::$name(v) => {state.input_group.insert_batch::<$name>(v);})*
                 }
             }
-        }
-    };
-}
 
-#[macro_export]
-macro_rules! load_inputs {
-    ($handle:expr, $path:expr, $batch_size:expr, $($name:ident),*) => {
-        {
-            let mut batches = 0;
+            pub fn load<A: App<Update=Update>>(handle: &Handle<A>, path: &str, batch_size: usize) -> usize {
+                let mut batches = 0;
 
-            $(
-                let data = load_input::<$name>($path, <$name as FileName>::FILE_NAME, $batch_size).unwrap();
-                batches += data.len();
-                for batch in data {
-                    $handle.update(batch.into());
-                }
-            )*
-            batches
+                $(
+                    let data = crate::util::load_input::<$name>(path, <$name as FileName>::FILE_NAME, batch_size).unwrap();
+                    batches += data.len();
+                    for batch in data {
+                        handle.update(batch.into());
+                    }
+                )*
+                batches
+            }
         }
     };
 }
