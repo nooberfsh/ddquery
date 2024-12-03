@@ -12,6 +12,7 @@ use timely::dataflow::Scope;
 
 use crate::models::*;
 use crate::AnswerTrace;
+use crate::{gen_query, gen_update};
 
 #[derive(Clone)]
 pub struct Q02;
@@ -38,18 +39,8 @@ impl Q02 {
     }
 }
 
-#[derive(Clone)]
-pub struct Query {
-    pub sender: Sender<Vec<Q02Answer>>,
-}
-
-pub enum Update {
-    Part(Vec<Part>),
-    Supplier(Vec<Supplier>),
-    PartSupp(Vec<PartSupp>),
-    Nation(Vec<Nation>),
-    Region(Vec<Region>),
-}
+gen_query!(Q02Answer);
+gen_update!(Part, Supplier, PartSupp, Nation, Region);
 
 impl App for Q02 {
     type Query = Query;
@@ -130,42 +121,11 @@ impl App for Q02 {
     }
 
     fn handle_query(query: Self::Query, time: SysTime, state: WorkerState<'_>) {
-        let mut trace = state
-            .trace_group
-            .get::<AnswerTrace<Q02Answer>>()
-            .unwrap()
-            .clone();
-
-        let task = move || {
-            if trace_beyond(&mut trace, &time) {
-                let data = collect_key_trace(&mut trace, &time);
-                let _ = query.sender.send(data);
-                PeekResult::Done
-            } else {
-                PeekResult::NotReady
-            }
-        };
-        state.peeks.push(Box::new(task));
+        query.query(time, state);
     }
 
     fn handle_update(update: Self::Update, state: WorkerState<'_>) {
-        match update {
-            Update::Part(v) => {
-                state.input_group.insert_batch::<Part>(v);
-            }
-            Update::Supplier(v) => {
-                state.input_group.insert_batch::<Supplier>(v);
-            }
-            Update::PartSupp(v) => {
-                state.input_group.insert_batch::<PartSupp>(v);
-            }
-            Update::Nation(v) => {
-                state.input_group.insert_batch::<Nation>(v);
-            }
-            Update::Region(v) => {
-                state.input_group.insert_batch::<Region>(v);
-            }
-        }
+        update.push_into(state);
     }
 }
 

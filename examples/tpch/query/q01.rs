@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use timely::dataflow::Scope;
 
 use crate::models::*;
-use crate::AnswerTrace;
+use crate::{gen_query, gen_update, AnswerTrace};
 
 #[derive(Clone)]
 pub struct Q01;
@@ -37,14 +37,12 @@ impl Q01 {
     }
 }
 
-#[derive(Clone)]
-pub struct Query {
-    pub sender: Sender<Vec<Q01Answer>>,
-}
+gen_query!(Q01Answer);
+gen_update!(LineItem);
 
 impl App for Q01 {
     type Query = Query;
-    type Update = Vec<LineItem>;
+    type Update = Update;
 
     fn name(&self) -> &str {
         "q01"
@@ -83,26 +81,11 @@ impl App for Q01 {
     }
 
     fn handle_query(query: Self::Query, time: SysTime, state: WorkerState<'_>) {
-        let mut trace = state
-            .trace_group
-            .get::<AnswerTrace<Q01Answer>>()
-            .unwrap()
-            .clone();
-
-        let task = move || {
-            if trace_beyond(&mut trace, &time) {
-                let data = collect_key_trace(&mut trace, &time);
-                let _ = query.sender.send(data);
-                PeekResult::Done
-            } else {
-                PeekResult::NotReady
-            }
-        };
-        state.peeks.push(Box::new(task));
+        query.query(time, state);
     }
 
     fn handle_update(update: Self::Update, state: WorkerState<'_>) {
-        state.input_group.insert_batch::<LineItem>(update);
+        update.push_into(state);
     }
 }
 

@@ -10,6 +10,10 @@ use crate::util::{parse_field, parse_field_trim};
 
 pub static DELIM: &str = "|";
 
+pub trait FileName {
+    const FILE_NAME: &'static str;
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Part {
     pub part_key: u64,
@@ -21,6 +25,10 @@ pub struct Part {
     pub container: String,
     pub retail_price: Decimal,
     pub comment: String,
+}
+
+impl FileName for Part {
+    const FILE_NAME: &'static str = "part.tbl";
 }
 
 impl FromStr for Part {
@@ -51,6 +59,10 @@ pub struct PartSupp {
     pub comment: String,
 }
 
+impl FileName for PartSupp {
+    const FILE_NAME: &'static str = "partsupp.tbl";
+}
+
 impl FromStr for PartSupp {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
@@ -75,6 +87,10 @@ pub struct Supplier {
     pub phone: String,
     pub acctbal: Decimal,
     pub comment: String,
+}
+
+impl FileName for Supplier {
+    const FILE_NAME: &'static str = "supplier.tbl";
 }
 
 impl FromStr for Supplier {
@@ -124,6 +140,10 @@ impl FromStr for Customer {
     }
 }
 
+impl FileName for Customer {
+    const FILE_NAME: &'static str = "customer.tbl";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Order {
     pub order_key: u64,
@@ -154,6 +174,10 @@ impl FromStr for Order {
         };
         Ok(ret)
     }
+}
+
+impl FileName for Order {
+    const FILE_NAME: &'static str = "order.tbl";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -202,6 +226,10 @@ impl FromStr for LineItem {
     }
 }
 
+impl FileName for LineItem {
+    const FILE_NAME: &'static str = "lineitem.tbl";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Nation {
     pub nation_key: u64,
@@ -224,6 +252,10 @@ impl FromStr for Nation {
     }
 }
 
+impl FileName for Nation {
+    const FILE_NAME: &'static str = "nation.tbl";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Region {
     pub region_key: u64,
@@ -242,6 +274,10 @@ impl FromStr for Region {
         };
         Ok(ret)
     }
+}
+
+impl FileName for Region {
+    const FILE_NAME: &'static str = "region.tbl";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
