@@ -177,7 +177,7 @@ impl FromStr for Order {
 }
 
 impl FileName for Order {
-    const FILE_NAME: &'static str = "order.tbl";
+    const FILE_NAME: &'static str = "orders.tbl";
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -339,6 +339,28 @@ impl FromStr for Q02Answer {
             s_address: parse_field_trim(&mut fields)?,
             s_phone: parse_field_trim(&mut fields)?,
             s_comment: parse_field_trim(&mut fields)?,
+        };
+        Ok(ret)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Q03Answer {
+    pub l_orderkey: u64,
+    pub revenue: Decimal,
+    pub o_orderdate: NaiveDate,
+    pub o_shippriority: i32,
+}
+
+impl FromStr for Q03Answer {
+    type Err = Error;
+    fn from_str(line: &str) -> std::result::Result<Self, Self::Err> {
+        let mut fields = line.split('|');
+        let ret = Q03Answer {
+            l_orderkey: parse_field_trim(&mut fields)?,
+            revenue: parse_field_trim(&mut fields)?,
+            o_orderdate: parse_field_trim(&mut fields)?,
+            o_shippriority: parse_field_trim(&mut fields)?,
         };
         Ok(ret)
     }
