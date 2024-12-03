@@ -1,10 +1,11 @@
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::time::Instant;
+
 use anyhow::{bail, Context, Error};
 use ddquery::{App, Handle, SysDiff, SysTime};
 use differential_dataflow::operators::arrange::TraceAgent;
 use differential_dataflow::trace::implementations::ord_neu::OrdKeySpine;
-use std::fmt::Debug;
-use std::str::FromStr;
-use std::time::Instant;
 
 use crate::models::*;
 use crate::query::q01::Q01;
@@ -13,6 +14,7 @@ use crate::query::q03::Q03;
 use crate::query::q04::Q04;
 use crate::query::q05::Q05;
 use crate::query::q06::Q06;
+use crate::query::q07::Q07;
 use crate::util::load_output;
 
 mod macros;
@@ -78,6 +80,7 @@ fn main() -> anyhow::Result<()> {
         4 => run::<Q04>(workers, batch_size, data_set)?,
         5 => run::<Q05>(workers, batch_size, data_set)?,
         6 => run::<Q06>(workers, batch_size, data_set)?,
+        7 => run::<Q07>(workers, batch_size, data_set)?,
         _ => bail!("query {d} not implemented yet"),
     }
     Ok(())
