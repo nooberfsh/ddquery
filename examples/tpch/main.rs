@@ -1,8 +1,10 @@
-use std::time::Instant;
-
-use ddquery::{App, SysDiff, SysTime};
+use anyhow::{bail, Error};
+use ddquery::{App, Handle, SysDiff, SysTime};
 use differential_dataflow::operators::arrange::TraceAgent;
 use differential_dataflow::trace::implementations::ord_neu::OrdKeySpine;
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::time::Instant;
 
 use crate::models::*;
 use crate::query::q01::Q01;
@@ -21,99 +23,56 @@ pub type AnswerTrace<T> = TraceAgent<OrdKeySpine<T, SysTime, SysDiff>>;
 
 const DEFAULT_WORKER_THREADS: usize = 4;
 const DEFAULT_BATCH_SIZE: usize = 1000;
+static DEFAULT_DATA_SET_PATH: &str = "dataset";
 
-fn main() {
-    q01();
-    q02();
-    q03();
-    q04();
-    q05();
+pub trait TpchQuery: App {
+    type Answer: FileName + FromStr<Err = Error> + Eq + PartialEq + Debug;
+
+    fn new() -> Self;
+
+    fn load(handle: &Handle<Self>, path: &str, batch_size: usize) -> usize;
+
+    fn load_answer() -> anyhow::Result<Vec<Self::Answer>> {
+        load_output::<Self::Answer>("examples/tpch/answers", Self::Answer::FILE_NAME)
+    }
 }
 
-fn q01() {
-    let handle = Q01.start(DEFAULT_WORKER_THREADS);
+pub trait TpchResults: TpchQuery {
+    fn results(handle: &Handle<Self>) -> Vec<Self::Answer>;
+}
 
-    let path = "dataset";
-    let expected = load_output::<Q01Answer>("examples/tpch/answers", "q1.out").unwrap();
-    let batches = <Q01 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
+fn run<T: TpchResults>(workers: usize, batch_size: usize, path: &str) -> anyhow::Result<()> {
+    let tpch = T::new();
+    println!("running query: {}", tpch.name());
+    let handle = tpch.start(workers);
+
+    let expected = T::load_answer()?;
+    let batches = T::load(&handle, path, batch_size);
 
     let start = Instant::now();
-    let res = Q01::results(&handle);
+    let res = T::results(&handle);
     assert_eq!(res, expected);
 
     println!(
-        "compute finish, time: {:?}: batches: {batches}",
+        "compute {} finish, time: {:?}: batches: {batches}",
+        tpch.name(),
         start.elapsed()
     );
-
-    let internal = handle.collect_internal_data();
-    println!("internal: {:#?}", internal);
+    Ok(())
 }
 
-fn q02() {
-    let handle = Q02.start(DEFAULT_WORKER_THREADS);
-
-    let path = "dataset";
-    let expected = load_output::<Q02Answer>("examples/tpch/answers", "q2.out").unwrap();
-    let batches = <Q02 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
-
-    let start = Instant::now();
-    let res = Q02::results(&handle);
-    assert_eq!(res, expected);
-
-    println!(
-        "compute finish, time: {:?}: batches: {batches}",
-        start.elapsed()
-    );
-}
-
-fn q03() {
-    let handle = Q03.start(DEFAULT_WORKER_THREADS);
-
-    let path = "dataset";
-    let expected = load_output::<Q03Answer>("examples/tpch/answers", "q3.out").unwrap();
-    let batches = <Q03 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
-
-    let start = Instant::now();
-    let res = Q03::results(&handle);
-    assert_eq!(res, expected);
-
-    println!(
-        "compute finish, time: {:?}: batches: {batches}",
-        start.elapsed()
-    );
-}
-
-fn q04() {
-    let handle = Q04.start(DEFAULT_WORKER_THREADS);
-
-    let path = "dataset";
-    let expected = load_output::<Q04Answer>("examples/tpch/answers", "q4.out").unwrap();
-    let batches = <Q04 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
-
-    let start = Instant::now();
-    let res = Q04::results(&handle);
-    assert_eq!(res, expected);
-
-    println!(
-        "compute finish, time: {:?}: batches: {batches}",
-        start.elapsed()
-    );
-}
-
-fn q05() {
-    let handle = Q05.start(DEFAULT_WORKER_THREADS);
-
-    let path = "dataset";
-    let expected = load_output::<Q05Answer>("examples/tpch/answers", "q5.out").unwrap();
-    let batches = <Q05 as App>::Update::load(&handle, path, DEFAULT_BATCH_SIZE);
-
-    let start = Instant::now();
-    let res = Q05::results(&handle);
-    assert_eq!(res, expected);
-
-    println!(
-        "compute finish, time: {:?}: batches: {batches}",
-        start.elapsed()
-    );
+fn main() -> anyhow::Result<()> {
+    let workers = DEFAULT_WORKER_THREADS;
+    let batch_size = DEFAULT_BATCH_SIZE;
+    let data_set = DEFAULT_DATA_SET_PATH;
+    let d: usize = std::env::args().nth(1).unwrap().parse().unwrap();
+    match d {
+        1 => run::<Q01>(workers, batch_size, data_set)?,
+        2 => run::<Q02>(workers, batch_size, data_set)?,
+        3 => run::<Q03>(workers, batch_size, data_set)?,
+        4 => run::<Q04>(workers, batch_size, data_set)?,
+        5 => run::<Q05>(workers, batch_size, data_set)?,
+        _ => bail!("query {d} not implemented yet"),
+    }
+    Ok(())
 }

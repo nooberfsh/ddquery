@@ -7,14 +7,12 @@ use differential_dataflow::operators::*;
 use timely::dataflow::Scope;
 
 use crate::models::*;
-use crate::AnswerTrace;
-use crate::{gen_query, gen_update};
+use crate::{gen_tpch_app, AnswerTrace, TpchResults};
 
-#[derive(Clone)]
-pub struct Q04;
+gen_tpch_app!(04, Order, LineItem);
 
-impl Q04 {
-    pub fn results(handle: &Handle<Q04>) -> Vec<Q04Answer> {
+impl TpchResults for Q04 {
+    fn results(handle: &Handle<Q04>) -> Vec<Q04Answer> {
         let (tx, rx) = crossbeam::channel::unbounded();
         handle.query(Query { sender: tx });
 
@@ -26,9 +24,6 @@ impl Q04 {
         res
     }
 }
-
-gen_query!(Q04Answer);
-gen_update!(Order, LineItem);
 
 impl App for Q04 {
     type Query = Query;

@@ -314,6 +314,10 @@ impl FromStr for Q01Answer {
     }
 }
 
+impl FileName for Q01Answer {
+    const FILE_NAME: &'static str = "q1.out";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Q02Answer {
     pub s_acctbal: Decimal,
@@ -344,6 +348,10 @@ impl FromStr for Q02Answer {
     }
 }
 
+impl FileName for Q02Answer {
+    const FILE_NAME: &'static str = "q2.out";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Q03Answer {
     pub l_orderkey: u64,
@@ -366,6 +374,10 @@ impl FromStr for Q03Answer {
     }
 }
 
+impl FileName for Q03Answer {
+    const FILE_NAME: &'static str = "q3.out";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Q04Answer {
     pub o_orderpriority: String,
@@ -384,6 +396,10 @@ impl FromStr for Q04Answer {
     }
 }
 
+impl FileName for Q04Answer {
+    const FILE_NAME: &'static str = "q4.out";
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Q05Answer {
     pub n_name: String,
@@ -400,4 +416,8 @@ impl FromStr for Q05Answer {
         };
         Ok(ret)
     }
+}
+
+impl FileName for Q05Answer {
+    const FILE_NAME: &'static str = "q5.out";
 }

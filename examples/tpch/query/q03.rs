@@ -12,14 +12,12 @@ use serde::{Deserialize, Serialize};
 use timely::dataflow::Scope;
 
 use crate::models::*;
-use crate::AnswerTrace;
-use crate::{gen_query, gen_update};
+use crate::{gen_tpch_app, AnswerTrace, TpchResults};
 
-#[derive(Clone)]
-pub struct Q03;
+gen_tpch_app!(03, Customer, Order, LineItem);
 
-impl Q03 {
-    pub fn results(handle: &Handle<Q03>) -> Vec<Q03Answer> {
+impl TpchResults for Q03 {
+    fn results(handle: &Handle<Q03>) -> Vec<Q03Answer> {
         let (tx, rx) = crossbeam::channel::unbounded();
         handle.query(Query { sender: tx });
 
@@ -37,9 +35,6 @@ impl Q03 {
         res
     }
 }
-
-gen_query!(Q03Answer);
-gen_update!(Customer, Order, LineItem);
 
 impl App for Q03 {
     type Query = Query;

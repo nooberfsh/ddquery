@@ -1,6 +1,35 @@
 #[macro_export]
-macro_rules! gen_update {
-    ($($name:ident),*) => {
+macro_rules! gen_tpch_app {
+    ($n:expr, $($name:ident),*) => {
+
+        paste::paste! {
+            #[derive(Clone)]
+            pub struct [<Q $n>];
+
+            type Answer = [<Q $n Answer>];
+
+            impl crate::TpchQuery for [<Q $n>] {
+                type Answer = Answer;
+
+                fn new() -> Self {
+                    [<Q $n>]
+                }
+
+                fn load(handle: &Handle<Self>, path: &str, batch_size: usize) -> usize {
+                    let mut batches = 0;
+
+                    $(
+                        let data = crate::util::load_input::<$name>(path, <$name as FileName>::FILE_NAME, batch_size).unwrap();
+                        batches += data.len();
+                        for batch in data {
+                            handle.update(batch.into());
+                        }
+                    )*
+                    batches
+                }
+            }
+        }
+
         pub enum Update {
             $($name(Vec<$name>)),*
         }
@@ -19,36 +48,18 @@ macro_rules! gen_update {
                     $(Update::$name(v) => {state.input_group.insert_batch::<$name>(v);})*
                 }
             }
-
-            pub fn load<A: App<Update=Update>>(handle: &Handle<A>, path: &str, batch_size: usize) -> usize {
-                let mut batches = 0;
-
-                $(
-                    let data = crate::util::load_input::<$name>(path, <$name as FileName>::FILE_NAME, batch_size).unwrap();
-                    batches += data.len();
-                    for batch in data {
-                        handle.update(batch.into());
-                    }
-                )*
-                batches
-            }
         }
-    };
-}
 
-#[macro_export]
-macro_rules! gen_query {
-    ($answer:ident) => {
         #[derive(Clone)]
         pub struct Query {
-            pub sender: Sender<Vec<$answer>>,
+            pub sender: Sender<Vec<Answer>>,
         }
 
         impl Query {
             fn query(self, time: SysTime, state: WorkerState<'_>) {
                 let mut trace = state
                     .trace_group
-                    .get::<AnswerTrace<$answer>>()
+                    .get::<AnswerTrace<Answer>>()
                     .unwrap()
                     .clone();
 
@@ -64,5 +75,5 @@ macro_rules! gen_query {
                 state.peeks.push(Box::new(task));
             }
         }
-    };
+    }
 }
