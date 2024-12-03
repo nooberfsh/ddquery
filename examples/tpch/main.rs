@@ -1,4 +1,4 @@
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use ddquery::{App, Handle, SysDiff, SysTime};
 use differential_dataflow::operators::arrange::TraceAgent;
 use differential_dataflow::trace::implementations::ord_neu::OrdKeySpine;
@@ -12,6 +12,7 @@ use crate::query::q02::Q02;
 use crate::query::q03::Q03;
 use crate::query::q04::Q04;
 use crate::query::q05::Q05;
+use crate::query::q06::Q06;
 use crate::util::load_output;
 
 mod macros;
@@ -65,13 +66,18 @@ fn main() -> anyhow::Result<()> {
     let workers = DEFAULT_WORKER_THREADS;
     let batch_size = DEFAULT_BATCH_SIZE;
     let data_set = DEFAULT_DATA_SET_PATH;
-    let d: usize = std::env::args().nth(1).unwrap().parse().unwrap();
+    let d: usize = std::env::args()
+        .nth(1)
+        .context("query number not provided")?
+        .parse()
+        .context("failed to parse query number")?;
     match d {
         1 => run::<Q01>(workers, batch_size, data_set)?,
         2 => run::<Q02>(workers, batch_size, data_set)?,
         3 => run::<Q03>(workers, batch_size, data_set)?,
         4 => run::<Q04>(workers, batch_size, data_set)?,
         5 => run::<Q05>(workers, batch_size, data_set)?,
+        6 => run::<Q06>(workers, batch_size, data_set)?,
         _ => bail!("query {d} not implemented yet"),
     }
     Ok(())

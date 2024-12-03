@@ -421,3 +421,23 @@ impl FromStr for Q05Answer {
 impl FileName for Q05Answer {
     const FILE_NAME: &'static str = "q5.out";
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Q06Answer {
+    pub revenue: Decimal,
+}
+
+impl FromStr for Q06Answer {
+    type Err = Error;
+    fn from_str(line: &str) -> std::result::Result<Self, Self::Err> {
+        let mut fields = line.split('|');
+        let ret = Q06Answer {
+            revenue: parse_field_trim(&mut fields)?,
+        };
+        Ok(ret)
+    }
+}
+
+impl FileName for Q06Answer {
+    const FILE_NAME: &'static str = "q6.out";
+}
