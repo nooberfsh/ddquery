@@ -9,11 +9,11 @@ edition = "2021"
 differential-dataflow = "0.13.1"
 timely = "0.14.1"
 crossbeam = "0.8.4"
+serde = {version = "1.0.210", features = ["derive"]}
 
 [dev-dependencies]
 anyhow = { version = "1.0.92" , features = ["backtrace"]}
 chrono = { version = "0.4.38", features = ["serde"]}
 rayon = "1.10.0"
 rust_decimal = "1.36.0"
-serde = {version = "1.0.210", features = ["derive"]}
 paste = "1.0.15"

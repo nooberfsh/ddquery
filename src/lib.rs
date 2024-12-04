@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use crossbeam::channel::{Receiver, Sender};
 use timely::communication::{Allocate, WorkerGuards};
 use timely::dataflow::Scope;
+use timely::progress::Timestamp;
 use timely::worker::Worker;
 use timely::Config;
 
@@ -18,8 +19,10 @@ use crate::timely_util::upsert_input::UpsertInputGroup;
 
 pub mod internal;
 pub mod timely_util;
+pub mod timestamp;
 
-pub type SysTime = u64;
+pub use timestamp::SysTime;
+
 pub type SysDiff = i64;
 
 pub enum PeekResult {
@@ -61,7 +64,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
             input_group: DDInputGroup::new(),
             worker,
             peeks: vec![],
-            frontier: 0,
+            frontier: SysTime::minimum(),
             shutdown: false,
         }
     }
@@ -103,7 +106,7 @@ impl<'w, A: Allocate> WorkerContext<'w, A> {
     pub fn handle_control_command(&mut self, cmd: ControlCommand) {
         match cmd {
             ControlCommand::AdvanceTimestamp(time) => {
-                assert_eq!(self.frontier + 1, time);
+                assert_eq!(self.frontier.step_forward(), time);
                 let prev_time = self.frontier;
                 self.frontier = time;
                 self.upsert_input_group.advance_to(self.frontier);
@@ -170,14 +173,15 @@ pub struct Coord<A: App> {
 
 impl<A: App> Coord<A> {
     fn advance_input(&mut self) {
-        self.frontier += 1;
+        self.frontier = self.frontier.step_forward();
         let cmd = ControlCommand::AdvanceTimestamp(self.frontier);
         self.broadcast(cmd);
     }
 
     fn query_time(&self) -> SysTime {
-        assert!(self.frontier > 0);
-        self.frontier - 1
+        self.frontier
+            .step_back()
+            .expect("initial query time not advanced")
     }
 
     fn send(&self, idx: usize, cmd: ServerCommand<A>) {
@@ -243,7 +247,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
 
     let mut coord = Coord {
         workers,
-        frontier: 0,
+        frontier: SysTime::minimum(),
         worker_guards,
         worker_txs,
     };
@@ -325,7 +329,7 @@ fn run_timely_workers<A: App>(
                 match cmd {
                     ServerCommand::Query(query, time) => {
                         let state = ctx.state();
-                        assert_eq!(state.frontier - 1, time);
+                        assert_eq!(state.frontier, time.step_forward());
                         A::handle_query(query, time, state);
                     }
                     ServerCommand::Update(update) => {
