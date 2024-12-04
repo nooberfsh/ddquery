@@ -16,7 +16,9 @@ use crate::internal::{
 use crate::timely_util::dd_input::DDInputGroup;
 use crate::timely_util::trace_group::TraceGroup;
 use crate::timely_util::upsert_input::UpsertInputGroup;
+use crate::command::{ClientCommand, ControlCommand, ServerCommand};
 
+mod command;
 pub mod internal;
 pub mod timely_util;
 pub mod timestamp;
@@ -168,7 +170,7 @@ pub struct Coord<A: App> {
     workers: usize,
     frontier: SysTime,
     worker_guards: WorkerGuards<()>,
-    worker_txs: Vec<Sender<ServerCommand<A>>>,
+    worker_txs: Vec<Sender<ServerCommand<A::Query, A::Update>>>,
 }
 
 impl<A: App> Coord<A> {
@@ -184,12 +186,12 @@ impl<A: App> Coord<A> {
             .expect("initial query time not advanced")
     }
 
-    fn send(&self, idx: usize, cmd: ServerCommand<A>) {
+    fn send(&self, idx: usize, cmd: ServerCommand<A::Query, A::Update>) {
         self.worker_txs[idx].send(cmd).unwrap();
         self.worker_guards.guards()[idx].thread().unpark();
     }
 
-    fn broadcast(&self, cmd: impl Into<ServerCommand<A>> + Clone) {
+    fn broadcast(&self, cmd: impl Into<ServerCommand<A::Query, A::Update>> + Clone) {
         for tx in &self.worker_txs {
             let cmd = cmd.clone().into();
             tx.send(cmd).unwrap();
@@ -218,7 +220,7 @@ pub trait App: Clone + Sized + 'static {
         let name = self.name();
         std::thread::Builder::new()
             .name(name.into())
-            .spawn(move || start_coord(workers, client_rx))
+            .spawn(move || start_coord::<Self>(workers, client_rx))
             .unwrap();
 
         Handle {
@@ -227,7 +229,7 @@ pub trait App: Clone + Sized + 'static {
     }
 }
 
-fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
+fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A::Query, A::Update>>) {
     let mut td_config = Config::process(workers);
     let dd_config = differential_dataflow::Config {
         idle_merge_effort: Some(1000),
@@ -245,7 +247,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
 
     let worker_guards = run_timely_workers::<A>(td_config, worker_rxs);
 
-    let mut coord = Coord {
+    let mut coord = Coord::<A> {
         workers,
         frontier: SysTime::minimum(),
         worker_guards,
@@ -300,7 +302,7 @@ fn start_coord<A: App>(workers: usize, client_rx: Receiver<ClientCommand<A>>) {
 
 fn run_timely_workers<A: App>(
     config: Config,
-    worker_rxs: Vec<Receiver<ServerCommand<A>>>,
+    worker_rxs: Vec<Receiver<ServerCommand<A::Query, A::Update>>>,
 ) -> WorkerGuards<()> {
     let workers = worker_rxs.len();
     assert!(workers > 0);
@@ -369,46 +371,12 @@ impl<A: App> Handle<A> {
 }
 
 struct HandleInner<A: App> {
-    tx: Sender<ClientCommand<A>>,
+    tx: Sender<ClientCommand<A::Query, A::Update>>,
 }
 
 impl<A: App> Drop for HandleInner<A> {
     fn drop(&mut self) {
         let cmd = ClientCommand::DropApp;
         self.tx.send(cmd).unwrap();
-    }
-}
-
-#[derive(Debug)]
-enum ClientCommand<A: App> {
-    Query(A::Query),
-    Update(A::Update),
-    CollectInternal(Sender<SysInternal>),
-    DropApp,
-}
-
-#[derive(Debug)]
-enum ServerCommand<A: App> {
-    Query(A::Query, SysTime),
-    Update(A::Update),
-    ControlCommand(ControlCommand),
-}
-
-#[derive(Clone, Debug)]
-pub enum ControlCommand {
-    AdvanceTimestamp(SysTime),
-    CollectInternal(Sender<SysInternalWorker>),
-    Shutdown,
-}
-
-impl<A: App> From<ControlCommand> for ServerCommand<A> {
-    fn from(value: ControlCommand) -> Self {
-        ServerCommand::ControlCommand(value)
-    }
-}
-
-impl<A: App> From<(A::Query, SysTime)> for ServerCommand<A> {
-    fn from((q, t): (A::Query, SysTime)) -> Self {
-        ServerCommand::Query(q, t)
     }
 }
