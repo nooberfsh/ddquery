@@ -15,6 +15,7 @@ use crate::query::q04::Q04;
 use crate::query::q05::Q05;
 use crate::query::q06::Q06;
 use crate::query::q07::Q07;
+use crate::query::q08::Q08;
 use crate::util::load_output;
 
 mod macros;
@@ -81,6 +82,7 @@ fn main() -> anyhow::Result<()> {
         5 => run::<Q05>(workers, batch_size, data_set)?,
         6 => run::<Q06>(workers, batch_size, data_set)?,
         7 => run::<Q07>(workers, batch_size, data_set)?,
+        8 => run::<Q08>(workers, batch_size, data_set)?,
         _ => bail!("query {d} not implemented yet"),
     }
     Ok(())

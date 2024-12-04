@@ -467,3 +467,25 @@ impl FromStr for Q07Answer {
 impl FileName for Q07Answer {
     const FILE_NAME: &'static str = "q7.out";
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Q08Answer {
+    pub o_year: i32,
+    pub mkt_share: Decimal,
+}
+
+impl FromStr for Q08Answer {
+    type Err = Error;
+    fn from_str(line: &str) -> std::result::Result<Self, Self::Err> {
+        let mut fields = line.split('|');
+        let ret = Q08Answer {
+            o_year: parse_field_trim(&mut fields)?,
+            mkt_share: parse_field_trim(&mut fields)?,
+        };
+        Ok(ret)
+    }
+}
+
+impl FileName for Q08Answer {
+    const FILE_NAME: &'static str = "q8.out";
+}
