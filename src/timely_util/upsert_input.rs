@@ -1,13 +1,16 @@
 use std::any::{type_name, Any, TypeId};
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 
+use differential_dataflow::difference::Semigroup;
 use differential_dataflow::lattice::Lattice;
 use differential_dataflow::operators::arrange::{upsert, Arranged, TraceAgent};
 use differential_dataflow::trace::cursor::IntoOwned;
 use differential_dataflow::trace::implementations::ord_neu::OrdValSpine;
 use differential_dataflow::trace::{Batch, Builder, Trace, TraceReader};
+use differential_dataflow::AsCollection;
 use differential_dataflow::{Collection, ExchangeData, Hashable};
-use timely::dataflow::operators::Input;
+use timely::dataflow::operators::{Input, Map};
 use timely::dataflow::{InputHandle, Scope};
 use timely::order::TotalOrder;
 use timely::progress::Timestamp;
@@ -30,17 +33,20 @@ pub(crate) struct BundleInfo<T> {
     pub(crate) time: T,
 }
 
-pub struct UpsertInputGroup<T> {
+pub struct UpsertInputGroup<T, R> {
     inputs: BTreeMap<TypeId, Bundle<T>>,
+    _marker: PhantomData<R>,
 }
 
-impl<T> UpsertInputGroup<T>
+impl<T, R> UpsertInputGroup<T, R>
 where
     T: Timestamp,
+    R: Semigroup + 'static,
 {
     pub fn new() -> Self {
         UpsertInputGroup {
             inputs: BTreeMap::new(),
+            _marker: PhantomData,
         }
     }
 
@@ -124,28 +130,39 @@ where
         ))
     }
 
-    pub fn alloc_collection<U, G>(&mut self, scope: &mut G) -> Collection<G, U>
+    pub fn alloc_collection<U, G>(&mut self, scope: &mut G) -> Collection<G, U, R>
     where
         G: Scope<Timestamp = T>,
         U::Key: ExchangeData + Hashable + std::hash::Hash,
         U: UpsertInput + ExchangeData,
         T: TotalOrder + ExchangeData + Lattice,
+        R: From<i64>,
     {
         let input: InputHandle<T, (U::Key, Option<U>, T)> = InputHandle::new();
         self.register(input);
         self.get_collection(scope).unwrap()
     }
 
-    fn get_collection<U, G>(&mut self, scope: &mut G) -> Option<Collection<G, U>>
+    fn get_collection<U, G>(&mut self, scope: &mut G) -> Option<Collection<G, U, R>>
     where
         G: Scope<Timestamp = T>,
         U::Key: ExchangeData + Hashable + std::hash::Hash,
         U: UpsertInput + ExchangeData,
         T: TotalOrder + ExchangeData + Lattice,
+        R: From<i64>,
     {
         let arranged = self
             .get_arrange_named::<U, OrdValSpine<_, _, _, _>, G>(scope, "UpsertInputToCollection")?;
-        Some(arranged.as_collection(|_k, v| v.clone()))
+        let collection = arranged.as_collection(|_k, v| v.clone());
+        Some(
+            collection
+                .inner
+                .map(|(u, t, r)| {
+                    let d: i64 = r.try_into().expect("failed to convert isize diff to i64");
+                    (u, t, d.into())
+                })
+                .as_collection(),
+        )
     }
 
     pub fn delete<U>(&mut self, key: U::Key)

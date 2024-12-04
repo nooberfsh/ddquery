@@ -33,7 +33,7 @@ pub struct WorkerContext<'w, A: Allocate> {
     // trace
     pub trace_group: TraceGroup<SysTime>,
     // input, all input's time should be equal
-    pub upsert_input_group: UpsertInputGroup<SysTime>,
+    pub upsert_input_group: UpsertInputGroup<SysTime, SysDiff>,
     pub input_group: DDInputGroup<SysTime, SysDiff>,
     // peaks
     pub peeks: Vec<PeekTask>,
@@ -46,7 +46,7 @@ pub struct WorkerState<'a> {
     // trace
     pub trace_group: &'a mut TraceGroup<SysTime>,
     // input, all input's time should be equal
-    pub upsert_input_group: &'a mut UpsertInputGroup<SysTime>,
+    pub upsert_input_group: &'a mut UpsertInputGroup<SysTime, SysDiff>,
     pub input_group: &'a mut DDInputGroup<SysTime, SysDiff>,
     // peaks
     pub peeks: &'a mut Vec<PeekTask>,
