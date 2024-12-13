@@ -10,13 +10,13 @@ use timely::progress::Timestamp;
 use timely::worker::Worker;
 use timely::Config;
 
+use crate::command::{ClientCommand, ControlCommand, ServerCommand};
 use crate::internal::{
     SysInternal, SysInternalCoord, SysInternalInput, SysInternalTrace, SysInternalWorker,
 };
 use crate::timely_util::dd_input::DDInputGroup;
 use crate::timely_util::trace_group::TraceGroup;
 use crate::timely_util::upsert_input::UpsertInputGroup;
-use crate::command::{ClientCommand, ControlCommand, ServerCommand};
 
 mod command;
 pub mod internal;

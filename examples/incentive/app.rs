@@ -10,7 +10,7 @@ use timely::PartialOrder;
 use crate::dataflows::*;
 use crate::error::Error;
 use crate::models::*;
-use crate::typedef::{ErrorTrace, SalesMonthKey, SalesRevenueAccuTrace};
+use crate::typedef::{ErrorTrace, SalesMonthKey, SalesMonthRangeKey, SalesRevenueAccuTrace};
 
 #[derive(Clone)]
 pub struct IncentiveApp;
@@ -26,6 +26,12 @@ pub enum Query {
         sales_ldap: String,
         month: Month,
         sender: Sender<Result<i64, Vec<Error>>>,
+    },
+    QuerySalesRevenueAccuRange {
+        sales_ldap: String,
+        start_month: Month,
+        end_month: Month,
+        sender: Sender<Result<Vec<(Month, i64)>, Vec<Error>>>,
     },
 }
 
@@ -173,6 +179,38 @@ impl App for IncentiveApp {
                 };
                 state.peeks.push(Box::new(task));
             }
+            Query::QuerySalesRevenueAccuRange {
+                sales_ldap,
+                start_month,
+                end_month,
+                sender,
+            } => {
+                let mut trace = state
+                    .trace_group
+                    .get::<SalesRevenueAccuTrace>()
+                    .unwrap()
+                    .clone();
+                let mut error_trace = state.trace_group.get::<ErrorTrace>().unwrap().clone();
+
+                let key = (sales_ldap, start_month, end_month);
+                let task = move || {
+                    if trace_beyond(&mut trace, &time) && trace_beyond(&mut error_trace, &time) {
+                        // ready
+                        let errors = collect_key_trace(&mut error_trace, &time);
+                        let res = if errors.is_empty() {
+                            let revenue = read_key_range(&mut trace, &time, &key);
+                            Ok(revenue)
+                        } else {
+                            Err(errors)
+                        };
+                        let _ = sender.send(res);
+                        PeekResult::Done
+                    } else {
+                        PeekResult::NotReady
+                    }
+                };
+                state.peeks.push(Box::new(task));
+            }
         }
     }
 
@@ -238,5 +276,62 @@ pub fn read_key(
 
         ret = values.pop();
     }
+    ret
+}
+
+pub fn read_key_range(
+    trace: &mut SalesRevenueAccuTrace,
+    time: &SysTime,
+    (name, start, end): &SalesMonthRangeKey,
+) -> Vec<(Month, i64)> {
+    let mut upper = Antichain::new();
+    trace.read_upper(&mut upper);
+    assert!(!upper.less_equal(time));
+    assert!(trace.get_logical_compaction().less_equal(time));
+
+    let mut ret = vec![];
+    let (mut cursor, storage) = trace.cursor();
+    let start = (name.clone(), *start);
+    let end = (name.clone(), *end);
+    cursor.seek_key(&storage, &start);
+    while let Some(key) = cursor.get_key(&storage) {
+        if key >= &end {
+            break;
+        }
+
+        let mut values = vec![];
+        while let Some(val) = cursor.get_val(&storage) {
+            let mut count = 0;
+            cursor.map_times(&storage, |dtime, diff| {
+                if dtime.less_equal(time) {
+                    count += diff;
+                }
+            });
+            assert!(
+                count == 0 || count == 1,
+                "invalid count for key: {:?}, count: {}",
+                key,
+                count
+            );
+            if count == 1 {
+                values.push(val.revenue);
+            }
+            cursor.step_val(&storage);
+        }
+
+        assert!(
+            values.len() == 0 || values.len() == 1,
+            "invalid count for key: {:?}, count: {}",
+            key,
+            values.len()
+        );
+
+        if let Some(v) = values.pop() {
+            ret.push((key.1.clone(), v));
+        }
+
+        cursor.step_key(&storage);
+    }
+
     ret
 }
